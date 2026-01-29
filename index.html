@@ -15,7 +15,9 @@
       --text:#d7deea;
       --muted:#9aa8bd;
 
+      /* restrained mint indicator */
       --ind:#9fe3b6;
+
       --shadow: rgba(0,0,0,.70);
     }
     *{box-sizing:border-box}
@@ -62,6 +64,8 @@
       text-transform:uppercase;
       letter-spacing:2.6px;
       color: rgba(215,222,234,.92);
+      user-select:none;
+      -webkit-user-select:none;
     }
 
     .panelRight{
@@ -83,6 +87,8 @@
       text-transform:uppercase;
       letter-spacing:1.4px;
       color: rgba(154,168,189,.90);
+      user-select:none;
+      -webkit-user-select:none;
     }
     .lamp{
       width:11px; height:11px;
@@ -110,6 +116,8 @@
       text-transform: uppercase;
       letter-spacing: 1.2px;
       font-variant-numeric: tabular-nums;
+      user-select:none;
+      -webkit-user-select:none;
     }
 
     .mid{
@@ -151,6 +159,8 @@
       display:grid;
       place-items:center;
       padding: 12px;
+      -webkit-tap-highlight-color: transparent;
+      outline: none;
     }
 
     .pressBtn::before{
@@ -167,8 +177,7 @@
       font-weight: 900;
       letter-spacing: 5px;
       text-transform: uppercase;
-      color: rgba(215,222,234,.46);   /* ★薄め */
-      text-shadow: none;
+      color: rgba(215,222,234,.44);   /* faint */
       user-select:none;
       -webkit-user-select:none;
     }
@@ -182,7 +191,7 @@
         inset 0 -12px 18px rgba(0,0,0,.62);
     }
     .pressBtn:active span{
-      color: rgba(215,222,234,.58); /* 押下でほんの少しだけ浮く */
+      color: rgba(215,222,234,.54);
     }
 
     .bottom{
@@ -206,6 +215,8 @@
       letter-spacing:1.6px;
       color: rgba(154,168,189,.95);
       white-space:nowrap;
+      user-select:none;
+      -webkit-user-select:none;
     }
 
     .seg{display:flex; gap:8px;}
@@ -222,6 +233,8 @@
       letter-spacing:1.4px;
       cursor:pointer;
       user-select:none;
+      -webkit-user-select:none;
+      -webkit-tap-highlight-color: transparent;
     }
     .seg input:checked + label{
       border-color: rgba(255,255,255,.14);
@@ -286,6 +299,8 @@
       letter-spacing:1.2px;
       font-variant-numeric: tabular-nums;
       color: rgba(154,168,189,.95);
+      user-select:none;
+      -webkit-user-select:none;
     }
   </style>
 </head>
@@ -347,6 +362,8 @@ let isHolding = false;
 let timer = null;
 let phaseOn = false;
 
+let armed = false;
+
 const lamp = document.getElementById("lamp");
 const readout = document.getElementById("readout");
 const pad = document.getElementById("pad");
@@ -366,7 +383,10 @@ let current = MID[0];
 
 function ensureAudio(){
   if (ctx) return;
-  ctx = new (window.AudioContext || window.webkitAudioContext)();
+
+  ctx = new (window.AudioContext || window.webkitAudioContext)({
+    latencyHint: "interactive"
+  });
 
   master = ctx.createGain();
   master.gain.value = 0.0;
@@ -385,6 +405,18 @@ function ensureAudio(){
   osc.start();
 }
 
+async function armAudio(){
+  if (armed) return true;
+  ensureAudio();
+  try{
+    await ctx.resume();    // ★iOS対策の要
+    armed = (ctx.state === "running");
+  }catch(e){
+    armed = false;
+  }
+  return armed;
+}
+
 function ramp(param, value, t=0.02){
   const now = ctx.currentTime;
   param.cancelScheduledValues(now);
@@ -397,9 +429,11 @@ function band(){
   if (document.getElementById("bandMid").checked)  return "MID";
   return "LOW";
 }
+
 function pickRandomNote(){
   return MID[(Math.random() * MID.length) | 0];
 }
+
 function setLamp(active){ lamp.classList.toggle("on", !!active); }
 
 function applyCurrentFreq(){
@@ -445,14 +479,14 @@ function stopBusy(){
     ramp(master.gain, 0.0, 0.06);
   }
   setLamp(false);
-  applyCurrentFreq();
+  if (ctx) applyCurrentFreq();
 }
 
-function holdOn(){
-  ensureAudio();
-  ctx.resume();
-  isHolding = true;
+async function holdOn(){
+  const ok = await armAudio();   // ★ここで確実に起動
+  if (!ok) return;
 
+  isHolding = true;
   current = pickRandomNote();
   applyCurrentFreq();
   startBusy();
@@ -463,12 +497,13 @@ function holdOff(){
   stopBusy();
 }
 
-// Slider label
-function updateLabel(){ msLabel.textContent = interval.value; }
+/* UI updates */
+function updateLabel(){
+  msLabel.textContent = interval.value;
+}
 interval.addEventListener("input", updateLabel);
 updateLabel();
 
-// Band change updates
 ["bandLow","bandMid","bandHigh"].forEach(id=>{
   document.getElementById(id).addEventListener("change", ()=>{
     const b = band();
@@ -478,18 +513,20 @@ updateLabel();
   });
 });
 
-// Events
-pad.addEventListener("mousedown", (e)=>{ e.preventDefault(); holdOn(); });
-window.addEventListener("mouseup", ()=> holdOff());
-
+/* ---- Events: touch only (avoid double fire) ---- */
 pad.addEventListener("touchstart", (e)=>{ e.preventDefault(); holdOn(); }, {passive:false});
 pad.addEventListener("touchend", (e)=>{ e.preventDefault(); holdOff(); }, {passive:false});
 pad.addEventListener("touchcancel", (e)=>{ e.preventDefault(); holdOff(); }, {passive:false});
 
+/* Desktop mouse */
+pad.addEventListener("mousedown", (e)=>{ e.preventDefault(); holdOn(); });
+window.addEventListener("mouseup", ()=> holdOff());
+
+/* Safety */
 window.addEventListener("blur", ()=> holdOff());
 document.addEventListener("visibilitychange", ()=>{ if (document.hidden) holdOff(); });
 
-// Initial readout
+/* Initial readout (no audio yet) */
 (function init(){
   const b = band();
   const hz = current.hz * BAND_MULT[b];
