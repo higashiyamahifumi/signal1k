@@ -6,7 +6,6 @@
   <title>YORU NO TSUSHIN</title>
   <style>
     :root{
-      /* deep navy chassis */
       --bg0:#05070c;
       --bg1:#070b12;
       --shell0:#07101e;
@@ -16,9 +15,7 @@
       --text:#d7deea;
       --muted:#9aa8bd;
 
-      /* restrained mint indicator */
       --ind:#9fe3b6;
-
       --shadow: rgba(0,0,0,.70);
     }
     *{box-sizing:border-box}
@@ -120,7 +117,6 @@
       background: linear-gradient(180deg, rgba(255,255,255,.02), rgba(0,0,0,.24));
     }
 
-    /* “normal” big tactile button area */
     .btnPlate{
       width:100%;
       height:280px;
@@ -133,10 +129,10 @@
       padding: 18px;
     }
 
+    /* full-width tactile button with faint text */
     .pressBtn{
       width:100%;
-      max-width: 640px;
-      height: 160px;
+      height: 180px;
       border-radius:14px;
       border:1px solid rgba(255,255,255,.08);
       background:
@@ -152,8 +148,11 @@
       touch-action:none;
       position:relative;
       transition: transform .06s ease, box-shadow .06s ease, border-color .12s ease;
+      display:grid;
+      place-items:center;
+      padding: 12px;
     }
-    /* inner border to make it feel “built” */
+
     .pressBtn::before{
       content:"";
       position:absolute;
@@ -162,34 +161,28 @@
       border:1px solid rgba(255,255,255,.06);
       pointer-events:none;
     }
-    /* small “pilot light” notch (subtle, not neon) */
-    .pressBtn::after{
-      content:"";
-      position:absolute;
-      left: 22px;
-      top: 22px;
-      width: 10px;
-      height: 10px;
-      border-radius:99px;
-      background: rgba(159,227,182,.10);
-      border: 1px solid rgba(159,227,182,.18);
-      box-shadow: inset 0 1px 1px rgba(255,255,255,.05);
-      opacity: .9;
-      pointer-events:none;
-      transition: background .12s ease, box-shadow .12s ease, border-color .12s ease;
+
+    .pressBtn span{
+      font-size: 28px;
+      font-weight: 900;
+      letter-spacing: 5px;
+      text-transform: uppercase;
+      color: rgba(215,222,234,.46);   /* ★薄め */
+      text-shadow: none;
+      user-select:none;
+      -webkit-user-select:none;
     }
+
     .pressBtn:active{
       transform: translateY(2px) scale(0.997);
-      border-color: rgba(159,227,182,.22);
+      border-color: rgba(159,227,182,.20);
       box-shadow:
         0 12px 26px rgba(0,0,0,.55),
         inset 0 2px 0 rgba(255,255,255,.04),
         inset 0 -12px 18px rgba(0,0,0,.62);
     }
-    .pressBtn:active::after{
-      background: rgba(159,227,182,.55);
-      border-color: rgba(159,227,182,.35);
-      box-shadow: 0 0 10px rgba(159,227,182,.14);
+    .pressBtn:active span{
+      color: rgba(215,222,234,.58); /* 押下でほんの少しだけ浮く */
     }
 
     .bottom{
@@ -314,7 +307,9 @@
 
       <div class="mid">
         <div class="btnPlate">
-          <button class="pressBtn" id="pad" type="button" aria-label="Transmit"></button>
+          <button class="pressBtn" id="pad" type="button" aria-label="Transmit">
+            <span>TRANSMIT</span>
+          </button>
         </div>
       </div>
 
