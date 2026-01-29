@@ -76,6 +76,7 @@
       color:var(--text);
       box-shadow: 0 0 0 2px rgba(215,255,107,.12) inset;
     }
+    input[type="range"]{ width:100%; accent-color: var(--accent); }
 
     .hint{color:rgba(169,178,195,.85); font-size:12px; line-height:1.7;}
     .mono{font-variant-numeric: tabular-nums;}
@@ -92,7 +93,7 @@
         </div>
         <div class="status">
           <div><span class="led" id="led"></span><span id="state">IDLE</span></div>
-          <div class="mono" id="readout">F • MID • 349.23 Hz</div>
+          <div class="mono" id="readout">—</div>
         </div>
       </header>
 
@@ -115,28 +116,13 @@
         </div>
 
         <div class="row">
-          <div>NOTE (Fmaj7(9))</div>
-          <div class="mono">F A C E G</div>
+          <div>BUSY INTERVAL</div>
+          <div class="mono"><span id="msLabel">420</span> ms</div>
         </div>
-        <div class="seg" role="radiogroup" aria-label="note">
-          <input id="nF" name="note" type="radio" checked>
-          <label for="nF">F</label>
-
-          <input id="nA" name="note" type="radio">
-          <label for="nA">A</label>
-
-          <input id="nC" name="note" type="radio">
-          <label for="nC">C</label>
-
-          <input id="nE" name="note" type="radio">
-          <label for="nE">E</label>
-
-          <input id="nG" name="note" type="radio">
-          <label for="nG">G</label>
-        </div>
+        <input id="interval" type="range" min="160" max="900" value="420" step="10" />
 
         <div class="hint">
-          サイン波・1音のみ。押している間だけ鳴る。<br>
+          押すたびに Fmaj7(9)（F A C E G）から1音をランダム選択。サイン波・ツーツー断続。<br>
           音が出ない時：音量/マナーモード/BT出力/タブミュート/サイトのサウンド許可。
         </div>
       </div>
@@ -146,25 +132,31 @@
 <script>
 let ctx;
 let osc;
-let master;
+let gate, master;
 let isHolding = false;
+let timer = null;
+let phaseOn = false;
 
 const led = document.getElementById("led");
 const stateEl = document.getElementById("state");
 const readout = document.getElementById("readout");
 const pad = document.getElementById("pad");
+const interval = document.getElementById("interval");
+const msLabel = document.getElementById("msLabel");
 
 // MID register base frequencies for Fmaj7(9) chord tones
-const MID = {
-  F: 349.228, // F4
-  A: 440.000, // A4
-  C: 523.251, // C5
-  E: 659.255, // E5
-  G: 783.991, // G5
-};
+const MID = [
+  { name: "F", hz: 349.228 }, // F4
+  { name: "A", hz: 440.000 }, // A4
+  { name: "C", hz: 523.251 }, // C5
+  { name: "E", hz: 659.255 }, // E5
+  { name: "G", hz: 783.991 }, // G5
+];
 
 // LOW/MID/HIGH multipliers (octaves)
 const BAND_MULT = { LOW: 0.5, MID: 1.0, HIGH: 2.0 };
+
+let current = MID[0]; // currently selected note
 
 function ensureAudio(){
   if (ctx) return;
@@ -173,11 +165,15 @@ function ensureAudio(){
   master = ctx.createGain();
   master.gain.value = 0.0;
 
+  gate = ctx.createGain();
+  gate.gain.value = 0.0;
+
   osc = ctx.createOscillator();
   osc.type = "sine";
-  osc.frequency.value = MID.F;
+  osc.frequency.value = current.hz;
 
-  osc.connect(master);
+  osc.connect(gate);
+  gate.connect(master);
   master.connect(ctx.destination);
 
   osc.start();
@@ -190,17 +186,10 @@ function ramp(param, value, t=0.02){
   param.linearRampToValueAtTime(value, now + t);
 }
 
-function getBand(){
+function band(){
   if (document.getElementById("bandHigh").checked) return "HIGH";
-  if (document.getElementById("bandMid").checked) return "MID";
+  if (document.getElementById("bandMid").checked)  return "MID";
   return "LOW";
-}
-function getNote(){
-  if (document.getElementById("nA").checked) return "A";
-  if (document.getElementById("nC").checked) return "C";
-  if (document.getElementById("nE").checked) return "E";
-  if (document.getElementById("nG").checked) return "G";
-  return "F";
 }
 
 function setUI(active, text){
@@ -209,40 +198,101 @@ function setUI(active, text){
   if (text) readout.textContent = text;
 }
 
-function applyFrequency(){
-  const band = getBand();
-  const note = getNote();
-  const hz = MID[note] * BAND_MULT[band];
-  osc.frequency.value = hz;
-  setUI(isHolding, `${note} • ${band} • ${hz.toFixed(2)} Hz`);
+function pickRandomNote(){
+  const i = (Math.random() * MID.length) | 0;
+  return MID[i];
+}
+
+function applyCurrentFreq(){
+  const b = band();
+  const hz = current.hz * BAND_MULT[b];
+
+  // tiny detune (very subtle) to avoid “too perfect”
+  const det = 1 + (Math.random()*0.002 - 0.001);
+  osc.frequency.value = hz * det;
+
+  setUI(isHolding, `${current.name} • ${b} • ${hz.toFixed(2)} Hz`);
+}
+
+// Busy cadence: interval ms ON / interval ms OFF
+function startBusy(){
+  if (timer) return;
+  phaseOn = false;
+
+  const step = () => {
+    if (!isHolding) return;
+
+    const ms = Number(interval.value);
+    phaseOn = !phaseOn;
+
+    if (phaseOn){
+      ramp(gate.gain, 1.0, 0.01);
+      ramp(master.gain, 0.16, 0.015);
+      setUI(true);
+      timer = setTimeout(step, ms);
+    } else {
+      ramp(gate.gain, 0.0, 0.03);
+      ramp(master.gain, 0.0, 0.05);
+      setUI(false);
+      timer = setTimeout(step, ms);
+    }
+  };
+
+  step();
+}
+
+function stopBusy(){
+  if (timer){
+    clearTimeout(timer);
+    timer = null;
+  }
+  if (ctx){
+    ramp(gate.gain, 0.0, 0.04);
+    ramp(master.gain, 0.0, 0.06);
+  }
+  const b = band();
+  const hz = current.hz * BAND_MULT[b];
+  setUI(false, `${current.name} • ${b} • ${hz.toFixed(2)} Hz`);
 }
 
 function holdOn(){
   ensureAudio();
   ctx.resume();
   isHolding = true;
-  applyFrequency();
-  ramp(master.gain, 0.16, 0.015); // volume
-  setUI(true);
+
+  // Each press: random note from F A C E G
+  current = pickRandomNote();
+  applyCurrentFreq();
+
+  startBusy();
 }
 
 function holdOff(){
   isHolding = false;
-  if (ctx) ramp(master.gain, 0.0, 0.05);
-  const band = getBand();
-  const note = getNote();
-  const hz = MID[note] * BAND_MULT[band];
-  setUI(false, `${note} • ${band} • ${hz.toFixed(2)} Hz`);
+  stopBusy();
 }
 
-// update readout when changing selection
-["bandLow","bandMid","bandHigh","nF","nA","nC","nE","nG"].forEach(id=>{
+// Slider label
+function updateLabel(){ msLabel.textContent = interval.value; }
+interval.addEventListener("input", updateLabel);
+updateLabel();
+
+// Update frequency if band changes during hold
+["bandLow","bandMid","bandHigh"].forEach(id=>{
   document.getElementById(id).addEventListener("change", ()=>{
-    const band = getBand();
-    const note = getNote();
-    const hz = MID[note] * BAND_MULT[band];
-    readout.textContent = `${note} • ${band} • ${hz.toFixed(2)} Hz`;
-    if (ctx && isHolding) applyFrequency();
+    if (!ctx) {
+      // update readout without audio init
+      const b = band();
+      const hz = current.hz * BAND_MULT[b];
+      readout.textContent = `${current.name} • ${b} • ${hz.toFixed(2)} Hz`;
+      return;
+    }
+    if (isHolding) applyCurrentFreq();
+    else {
+      const b = band();
+      const hz = current.hz * BAND_MULT[b];
+      readout.textContent = `${current.name} • ${b} • ${hz.toFixed(2)} Hz`;
+    }
   });
 });
 
@@ -257,12 +307,11 @@ pad.addEventListener("touchcancel", (e)=>{ e.preventDefault(); holdOff(); }, {pa
 window.addEventListener("blur", ()=> holdOff());
 document.addEventListener("visibilitychange", ()=>{ if (document.hidden) holdOff(); });
 
-// Initial readout
+// Initial readout (no audio init)
 (function init(){
-  const band = getBand();
-  const note = getNote();
-  const hz = MID[note] * BAND_MULT[band];
-  readout.textContent = `${note} • ${band} • ${hz.toFixed(2)} Hz`;
+  const b = band();
+  const hz = current.hz * BAND_MULT[b];
+  readout.textContent = `${current.name} • ${b} • ${hz.toFixed(2)} Hz`;
 })();
 </script>
 </body>
