@@ -6,48 +6,120 @@
   <title>Night Transmission</title>
   <style>
     :root{
-      --bg:#07090d; --panel:#0d1118; --line:#1b2433;
-      --text:#e8eefc; --muted:#93a4c7; --accent:#8cf0ff;
+      --bg:#050607;
+      --panel:#0a0c0f;
+      --line:#2a2f3a;
+      --text:#e9edf6;
+      --muted:#a9b2c3;
+      --accent:#d7ff6b;
     }
     *{box-sizing:border-box}
     body{
-      margin:0; min-height:100vh; display:grid; place-items:center;
-      background:
-        radial-gradient(900px 500px at 20% 20%, rgba(140,240,255,.10), transparent 55%),
-        radial-gradient(900px 600px at 50% 90%, rgba(140,240,255,.06), transparent 60%),
-        var(--bg);
+      margin:0;
+      min-height:100vh;
+      display:grid;
+      place-items:center;
+      background:linear-gradient(180deg, #050607 0%, #070a0f 100%);
       color:var(--text);
-      font-family: ui-sans-serif, system-ui, -apple-system, "Hiragino Sans", "Noto Sans JP", sans-serif;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
     }
     .wrap{width:min(760px, 92vw); padding:22px;}
     .card{
-      background:rgba(255,255,255,.02);
       border:1px solid var(--line);
-      border-radius:18px;
+      background:var(--panel);
+      border-radius:14px;
       padding:18px;
-      box-shadow: 0 10px 40px rgba(0,0,0,.35);
+      box-shadow: 0 18px 50px rgba(0,0,0,.55);
     }
-    header{display:flex; align-items:baseline; justify-content:space-between; gap:12px;}
-    h1{margin:0; font-size:18px; font-weight:800; letter-spacing:.8px; text-transform:uppercase;}
-    .jp{margin-top:4px; font-size:12px; color:var(--muted); font-weight:600;}
-    .status{font-size:12px; color:var(--muted); display:flex; gap:10px; align-items:center;}
-    .dot{width:8px;height:8px;border-radius:99px;background:rgba(147,164,199,.35);}
-    .dot.on{background:var(--accent); box-shadow:0 0 18px rgba(140,240,255,.55);}
-    .panel{margin-top:14px; padding:14px; border-radius:14px; border:1px solid rgba(27,36,51,.9); background:rgba(13,17,24,.72);}
+    header{
+      display:flex;
+      justify-content:space-between;
+      gap:12px;
+      align-items:flex-start;
+      padding-bottom:12px;
+      border-bottom:1px solid rgba(42,47,58,.6);
+      margin-bottom:14px;
+    }
+    h1{
+      margin:0;
+      font-size:14px;
+      letter-spacing:1.2px;
+      text-transform:uppercase;
+      font-weight:800;
+    }
+    .jp{
+      margin-top:6px;
+      color:var(--muted);
+      font-size:12px;
+      letter-spacing:.2px;
+    }
+    .status{
+      text-align:right;
+      color:var(--muted);
+      font-size:12px;
+      line-height:1.4;
+    }
+    .led{
+      display:inline-block;
+      width:9px;height:9px;border-radius:99px;
+      background:rgba(169,178,195,.25);
+      box-shadow:none;
+      vertical-align:middle;
+      margin-right:8px;
+    }
+    .led.on{
+      background:var(--accent);
+      box-shadow:0 0 18px rgba(215,255,107,.45);
+    }
+
+    /* single button */
     #pad{
-      width:100%; height:220px; border-radius:16px;
-      border:1px solid rgba(140,240,255,.25);
-      background:rgba(10,14,20,.6);
+      width:100%;
+      height:260px;
+      border:1px solid rgba(233,237,246,.18);
+      border-radius:12px;
+      background:linear-gradient(180deg, rgba(255,255,255,.03), rgba(255,255,255,.01));
       color:var(--text);
-      font-size:26px; font-weight:800; letter-spacing:1px; text-transform:uppercase;
-      user-select:none; -webkit-user-select:none; touch-action:none;
+      font-size:22px;
+      font-weight:900;
+      letter-spacing:1.4px;
+      text-transform:uppercase;
+      user-select:none;
+      -webkit-user-select:none;
+      touch-action:none;
+      display:grid;
+      place-items:center;
     }
-    #pad:active{border-color: rgba(140,240,255,.55);}
-    .sub{margin-top:10px; display:flex; justify-content:space-between; gap:10px; color:var(--muted); font-size:12px; line-height:1.6;}
-    .row{display:flex; gap:10px; margin-top:12px;}
-    .btn{flex:1; padding:12px 10px; border-radius:12px; border:1px solid rgba(147,164,199,.25);
-      background:rgba(255,255,255,.03); color:var(--text); font-weight:800; font-size:12px; letter-spacing:.6px; text-transform:uppercase;}
-    .mono{font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;}
+    #pad:active{
+      border-color: rgba(215,255,107,.5);
+      box-shadow: 0 0 0 2px rgba(215,255,107,.15) inset;
+    }
+
+    .controls{
+      margin-top:14px;
+      padding-top:14px;
+      border-top:1px solid rgba(42,47,58,.6);
+      display:grid;
+      gap:10px;
+    }
+    .row{
+      display:flex;
+      justify-content:space-between;
+      align-items:center;
+      gap:12px;
+      color:var(--muted);
+      font-size:12px;
+    }
+    input[type="range"]{
+      width:100%;
+      accent-color: var(--accent);
+    }
+    .hint{
+      color:rgba(169,178,195,.85);
+      font-size:12px;
+      line-height:1.7;
+    }
+    .mono{font-variant-numeric: tabular-nums;}
   </style>
 </head>
 
@@ -60,22 +132,22 @@
           <div class="jp">夜の通信</div>
         </div>
         <div class="status">
-          <div class="dot" id="dot"></div>
-          <span class="mono" id="readout">IDLE</span>
+          <div><span class="led" id="led"></span><span id="state">IDLE</span></div>
+          <div class="mono" id="readout">Fmaj7(9) → (F A C E G)</div>
         </div>
       </header>
 
-      <div class="panel">
-        <button id="pad" type="button">TRANSMIT</button>
+      <button id="pad" type="button">TRANSMIT</button>
 
-        <div class="sub">
-          <div>押してる間：FM-ish Busy Tone（ツーツー）</div>
-          <div class="mono">each press: random</div>
-        </div>
-
+      <div class="controls">
         <div class="row">
-          <button class="btn" id="reroll" type="button">REROLL</button>
-          <button class="btn" id="oneshot" type="button">ONE SHOT</button>
+          <div>BUSY INTERVAL</div>
+          <div class="mono"><span id="msLabel">420</span> ms</div>
+        </div>
+        <input id="interval" type="range" min="160" max="900" value="420" step="10" />
+        <div class="hint">
+          押してる間だけ鳴る。押すたびに Fmaj7(9)（F A C E G）からランダムに2音選択。<br>
+          音が出ない時：音量/マナーモード/BT出力/タブミュート/サイトのサウンド許可。
         </div>
       </div>
     </div>
@@ -83,50 +155,61 @@
 
 <script>
 let ctx;
-let master, gate, bp;
-let carrier, mod, modGain;
+let o1, o2;
+let gate, master, bp;
 let isHolding = false;
 let timer = null;
-let on = false;
+let phaseOn = false;
 
-const dot = document.getElementById("dot");
+const led = document.getElementById("led");
+const stateEl = document.getElementById("state");
 const readout = document.getElementById("readout");
 const pad = document.getElementById("pad");
-const rerollBtn = document.getElementById("reroll");
-const oneshotBtn = document.getElementById("oneshot");
+const interval = document.getElementById("interval");
+const msLabel = document.getElementById("msLabel");
+
+// Fmaj7(9) chord tones: F A C E G
+// (電話っぽくするため、あえて中高域寄りのオクターブ)
+const chord = [
+  { name: "F", hz: 349.228 }, // F4
+  { name: "A", hz: 440.000 }, // A4
+  { name: "C", hz: 523.251 }, // C5
+  { name: "E", hz: 659.255 }, // E5
+  { name: "G", hz: 783.991 }, // G5
+];
 
 function ensureAudio(){
   if (ctx) return;
+
   ctx = new (window.AudioContext || window.webkitAudioContext)();
 
-  master = ctx.createGain(); master.gain.value = 0.0;
-  gate   = ctx.createGain(); gate.gain.value = 0.0;
+  master = ctx.createGain();
+  master.gain.value = 0.0;
 
-  // “電話回線”っぽい帯域
+  gate = ctx.createGain();
+  gate.gain.value = 0.0;
+
+  // telephone-ish bandpass (無骨な回線感)
   bp = ctx.createBiquadFilter();
   bp.type = "bandpass";
   bp.frequency.value = 1400;
   bp.Q.value = 0.9;
 
-  carrier = ctx.createOscillator();
-  mod     = ctx.createOscillator();
-  carrier.type = "sine";
-  mod.type = "sine";
+  o1 = ctx.createOscillator();
+  o2 = ctx.createOscillator();
 
-  modGain = ctx.createGain();
-  modGain.gain.value = 0;
+  // 無骨さ：square（刺さるなら "sine" に変えてOK）
+  o1.type = "square";
+  o2.type = "square";
 
-  // FM: mod -> modGain -> carrier.frequency
-  mod.connect(modGain);
-  modGain.connect(carrier.frequency);
-
-  carrier.connect(gate);
+  o1.connect(gate);
+  o2.connect(gate);
   gate.connect(bp);
   bp.connect(master);
   master.connect(ctx.destination);
 
-  carrier.start();
-  mod.start();
+  o1.start();
+  o2.start();
 }
 
 function ramp(param, value, t=0.02){
@@ -137,71 +220,83 @@ function ramp(param, value, t=0.02){
 }
 
 function setUI(active, text){
-  dot.classList.toggle("on", !!active);
-  readout.textContent = text;
+  led.classList.toggle("on", !!active);
+  stateEl.textContent = active ? "TX" : "IDLE";
+  if (text) readout.textContent = text;
 }
 
-function randomizeTimbre(){
-  // Busy-tone系の芯（定番寄り）
-  const base = (Math.random() < 0.5 ? 480 : 620);
-  const carrierHz = Math.max(180, base + (Math.random()*80 - 40));
+function pickTwoDistinct(){
+  const a = (Math.random() * chord.length) | 0;
+  let b = (Math.random() * chord.length) | 0;
+  while (b === a) b = (Math.random() * chord.length) | 0;
+  return [chord[a], chord[b]];
+}
 
-  // FM7っぽい“比率っぽさ”
-  const ratios = [0.5, 1, 1.5, 2, 3, 4, 5, 6];
-  const ratio = ratios[(Math.random()*ratios.length)|0] + (Math.random()*0.06 - 0.03);
+function setRandomChordTones(){
+  const [n1, n2] = pickTwoDistinct();
 
-  // 明るさ（変調の深さ）
-  const index = 60 + Math.random()*260;
+  // ほんの微デチューンで「回線の揺れ」
+  const det1 = 1 + (Math.random()*0.006 - 0.003);
+  const det2 = 1 + (Math.random()*0.006 - 0.003);
 
-  carrier.frequency.value = carrierHz;
-  mod.frequency.value = carrierHz * ratio;
-  modGain.gain.value = index;
+  o1.frequency.value = n1.hz * det1;
+  o2.frequency.value = n2.hz * det2;
 
-  // 回線感も軽く揺らす
+  // bandpassも少しだけ揺らして電話感
   bp.frequency.value = 1100 + Math.random()*1100;
-  bp.Q.value = 0.7 + Math.random()*0.7;
+  bp.Q.value = 0.7 + Math.random()*0.8;
 
-  setUI(isHolding, `FM ${ratio.toFixed(2)}  IDX ${Math.round(index)}  BP ${Math.round(bp.frequency.value)}Hz`);
+  setUI(isHolding, `${n1.name} + ${n2.name}  |  Fmaj7(9)`);
 }
 
-// ツーツー：0.5s ON / 0.5s OFF
+// Busy cadence loop: interval ms ON / interval ms OFF
 function startCadence(){
   if (timer) return;
-  const onMs = 500, offMs = 500;
-  on = false;
+  phaseOn = false;
 
   const step = () => {
     if (!isHolding) return;
-    on = !on;
-    if (on){
+
+    const ms = Number(interval.value);
+    phaseOn = !phaseOn;
+
+    if (phaseOn){
+      // ON
       ramp(gate.gain, 1.0, 0.01);
-      ramp(master.gain, 0.16, 0.015);
-      setUI(true, readout.textContent);
-      timer = setTimeout(step, onMs);
+      ramp(master.gain, 0.14, 0.015);
+      setUI(true);
+      timer = setTimeout(step, ms);
     } else {
+      // OFF
       ramp(gate.gain, 0.0, 0.03);
       ramp(master.gain, 0.0, 0.05);
-      setUI(false, readout.textContent);
-      timer = setTimeout(step, offMs);
+      setUI(false);
+      timer = setTimeout(step, ms);
     }
   };
+
   step();
 }
 
 function stopCadence(){
-  if (timer){ clearTimeout(timer); timer = null; }
+  if (timer){
+    clearTimeout(timer);
+    timer = null;
+  }
   if (ctx){
     ramp(gate.gain, 0.0, 0.04);
     ramp(master.gain, 0.0, 0.06);
   }
-  setUI(false, "IDLE");
+  setUI(false, "Fmaj7(9) → (F A C E G)");
 }
 
 function holdOn(){
   ensureAudio();
   ctx.resume();
   isHolding = true;
-  randomizeTimbre();
+
+  // Each press: new random chord tones
+  setRandomChordTones();
   startCadence();
 }
 
@@ -210,40 +305,21 @@ function holdOff(){
   stopCadence();
 }
 
-function oneShot(){
-  ensureAudio();
-  ctx.resume();
-  randomizeTimbre();
-  const now = ctx.currentTime;
-
-  gate.gain.cancelScheduledValues(now);
-  master.gain.cancelScheduledValues(now);
-
-  gate.gain.setValueAtTime(0.0, now);
-  master.gain.setValueAtTime(0.0, now);
-
-  gate.gain.linearRampToValueAtTime(1.0, now + 0.01);
-  master.gain.linearRampToValueAtTime(0.16, now + 0.015);
-
-  gate.gain.linearRampToValueAtTime(0.0, now + 0.22);
-  master.gain.linearRampToValueAtTime(0.0, now + 0.28);
-
-  setUI(true, readout.textContent);
-  setTimeout(()=> setUI(false, "IDLE"), 350);
-}
+// slider label
+function updateLabel(){ msLabel.textContent = interval.value; }
+interval.addEventListener("input", updateLabel);
+updateLabel();
 
 // Events (mouse + touch)
 pad.addEventListener("mousedown", (e)=>{ e.preventDefault(); holdOn(); });
 window.addEventListener("mouseup", ()=> holdOff());
+
 pad.addEventListener("touchstart", (e)=>{ e.preventDefault(); holdOn(); }, {passive:false});
 pad.addEventListener("touchend", (e)=>{ e.preventDefault(); holdOff(); }, {passive:false});
 pad.addEventListener("touchcancel", (e)=>{ e.preventDefault(); holdOff(); }, {passive:false});
 
 window.addEventListener("blur", ()=> holdOff());
 document.addEventListener("visibilitychange", ()=>{ if (document.hidden) holdOff(); });
-
-rerollBtn.addEventListener("click", ()=>{ ensureAudio(); ctx.resume(); randomizeTimbre(); });
-oneshotBtn.addEventListener("click", ()=> oneShot());
 </script>
 </body>
 </html>
