@@ -6,25 +6,21 @@
   <title>YORU NO TSUSHIN</title>
   <style>
     :root{
-      /* deep, chic navy */
+      /* deep navy chassis */
       --bg0:#05070c;
       --bg1:#070b12;
       --shell0:#07101e;
       --shell1:#06101a;
       --edge:#13233a;
-      --bezel:#0f1b2d;
 
-      /* restrained indicator + text */
       --text:#d7deea;
       --muted:#9aa8bd;
 
-      /* indicator (not neon) */
-      --ind:#9fe3b6;   /* soft mint */
-      --ind2:#6acb8f;  /* deeper mint */
+      /* restrained mint indicator */
+      --ind:#9fe3b6;
 
       --shadow: rgba(0,0,0,.70);
     }
-
     *{box-sizing:border-box}
     body{
       margin:0;
@@ -51,7 +47,6 @@
       overflow:hidden;
     }
 
-    /* top plate */
     .top{
       display:flex;
       align-items:flex-start;
@@ -102,11 +97,9 @@
     .lamp.on{
       background: rgba(159,227,182,.78);
       border-color: rgba(159,227,182,.45);
-      box-shadow:
-        0 0 10px rgba(159,227,182,.18);
+      box-shadow: 0 0 10px rgba(159,227,182,.18);
     }
 
-    /* matte readout */
     .readout{
       width: 100%;
       border: 1px solid rgba(255,255,255,.06);
@@ -124,88 +117,79 @@
 
     .mid{
       padding:18px 16px 16px 16px;
-      background:
-        linear-gradient(180deg, rgba(255,255,255,.02), rgba(0,0,0,.24));
-      display:grid;
-      place-items:center;
+      background: linear-gradient(180deg, rgba(255,255,255,.02), rgba(0,0,0,.24));
     }
 
-    /* The “press-me” button: no text */
-    .btnWrap{
+    /* “normal” big tactile button area */
+    .btnPlate{
       width:100%;
       height:280px;
-      display:grid;
-      place-items:center;
-      border-radius:18px;
+      border-radius:16px;
       border:1px solid rgba(255,255,255,.05);
       background: rgba(0,0,0,.12);
       box-shadow: inset 0 1px 0 rgba(255,255,255,.03);
+      display:grid;
+      place-items:center;
+      padding: 18px;
     }
 
     .pressBtn{
-      width: 210px;
-      height: 210px;
-      border-radius: 999px;
-      border: 1px solid rgba(255,255,255,.06);
+      width:100%;
+      max-width: 640px;
+      height: 160px;
+      border-radius:14px;
+      border:1px solid rgba(255,255,255,.08);
       background:
-        radial-gradient(120px 120px at 50% 35%, rgba(255,255,255,.10), rgba(255,255,255,0) 60%),
-        radial-gradient(180px 180px at 50% 70%, rgba(0,0,0,.35), rgba(0,0,0,0) 60%),
-        linear-gradient(180deg, rgba(255,255,255,.04), rgba(0,0,0,.45)),
-        #06101a;
+        linear-gradient(180deg, rgba(255,255,255,.06), rgba(0,0,0,.35)),
+        #07101c;
       box-shadow:
-        0 18px 40px rgba(0,0,0,.55),
-        inset 0 2px 0 rgba(255,255,255,.05),
+        0 18px 36px rgba(0,0,0,.55),
+        inset 0 2px 0 rgba(255,255,255,.06),
         inset 0 -18px 24px rgba(0,0,0,.55);
-      position: relative;
-      cursor: pointer;
+      cursor:pointer;
       user-select:none;
       -webkit-user-select:none;
       touch-action:none;
+      position:relative;
       transition: transform .06s ease, box-shadow .06s ease, border-color .12s ease;
     }
-
-    /* outer ring */
+    /* inner border to make it feel “built” */
     .pressBtn::before{
       content:"";
       position:absolute;
-      inset: 12px;
-      border-radius: 999px;
-      border: 1px solid rgba(255,255,255,.06);
-      box-shadow:
-        inset 0 0 0 1px rgba(0,0,0,.35);
+      inset:12px;
+      border-radius:10px;
+      border:1px solid rgba(255,255,255,.06);
       pointer-events:none;
     }
-
-    /* inner “lens” + subtle indicator ring */
+    /* small “pilot light” notch (subtle, not neon) */
     .pressBtn::after{
       content:"";
       position:absolute;
-      inset: 54px;
-      border-radius: 999px;
-      background:
-        radial-gradient(closest-side, rgba(159,227,182,.10), rgba(159,227,182,0) 65%),
-        radial-gradient(closest-side, rgba(255,255,255,.08), rgba(255,255,255,0) 70%),
-        rgba(0,0,0,.18);
-      border: 1px solid rgba(255,255,255,.05);
-      box-shadow: inset 0 1px 0 rgba(255,255,255,.04);
+      left: 22px;
+      top: 22px;
+      width: 10px;
+      height: 10px;
+      border-radius:99px;
+      background: rgba(159,227,182,.10);
+      border: 1px solid rgba(159,227,182,.18);
+      box-shadow: inset 0 1px 1px rgba(255,255,255,.05);
+      opacity: .9;
       pointer-events:none;
-      opacity: .55;
-      transition: opacity .12s ease, box-shadow .12s ease;
+      transition: background .12s ease, box-shadow .12s ease, border-color .12s ease;
     }
-
     .pressBtn:active{
-      transform: translateY(2px) scale(0.996);
-      border-color: rgba(159,227,182,.18);
+      transform: translateY(2px) scale(0.997);
+      border-color: rgba(159,227,182,.22);
       box-shadow:
-        0 12px 28px rgba(0,0,0,.55),
+        0 12px 26px rgba(0,0,0,.55),
         inset 0 2px 0 rgba(255,255,255,.04),
         inset 0 -12px 18px rgba(0,0,0,.62);
     }
     .pressBtn:active::after{
-      opacity: .85;
-      box-shadow:
-        inset 0 1px 0 rgba(255,255,255,.04),
-        0 0 18px rgba(159,227,182,.10);
+      background: rgba(159,227,182,.55);
+      border-color: rgba(159,227,182,.35);
+      box-shadow: 0 0 10px rgba(159,227,182,.14);
     }
 
     .bottom{
@@ -213,8 +197,7 @@
       padding:14px 16px 16px 16px;
       display:grid;
       gap:12px;
-      background:
-        linear-gradient(180deg, rgba(255,255,255,.015), rgba(0,0,0,.24));
+      background: linear-gradient(180deg, rgba(255,255,255,.015), rgba(0,0,0,.24));
     }
 
     .row{
@@ -253,7 +236,7 @@
       color: rgba(215,222,234,.92);
     }
 
-    /* slider: no colored fill; position only */
+    /* slider: position only, no colored fill */
     .sliderWrap{
       display:flex;
       align-items:center;
@@ -265,9 +248,8 @@
       -webkit-appearance:none;
       appearance:none;
       background: transparent;
-      height: 28px; /* thumb room */
+      height: 28px;
     }
-    /* track */
     input[type="range"]::-webkit-slider-runnable-track{
       height: 4px;
       background: rgba(255,255,255,.12);
@@ -280,7 +262,6 @@
       border-radius: 999px;
       border: 1px solid rgba(0,0,0,.35);
     }
-    /* thumb */
     input[type="range"]::-webkit-slider-thumb{
       -webkit-appearance:none;
       appearance:none;
@@ -291,7 +272,7 @@
       box-shadow:
         0 6px 14px rgba(0,0,0,.45),
         inset 0 1px 0 rgba(255,255,255,.22);
-      margin-top: -8px; /* center on track */
+      margin-top: -8px;
     }
     input[type="range"]::-moz-range-thumb{
       width: 18px; height: 18px;
@@ -332,7 +313,7 @@
       </div>
 
       <div class="mid">
-        <div class="btnWrap">
+        <div class="btnPlate">
           <button class="pressBtn" id="pad" type="button" aria-label="Transmit"></button>
         </div>
       </div>
