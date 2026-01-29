@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Signal 1k</title>
+  <style>
+    body{margin:0;height:100vh;display:grid;place-items:center;background:#0b0c10;color:#e7e7e7;font-family:system-ui,sans-serif;}
+    button{width:min(520px,92vw);height:220px;font-size:28px;border-radius:18px;border:1px solid #333;background:#e7e7e7;color:#000;}
+    .hint{margin-top:14px;opacity:.75;font-size:13px;line-height:1.6;text-align:center;}
+  </style>
+</head>
+<body>
+  <div style="text-align:center;">
+    <button id="pad">PRESS & HOLD</button>
+    <div class="hint">押してる間だけ 1kHz が鳴ります。音量/マナーモード注意。</div>
+  </div>
+
+<script>
+let ctx, osc, gain;
+let started = false;
+
+function ensureAudio() {
+  if (ctx) return;
+  ctx = new (window.AudioContext || window.webkitAudioContext)();
+
+  osc = ctx.createOscillator();
+  osc.type = "sine";
+  osc.frequency.value = 1000;
+
+  gain = ctx.createGain();
+  gain.gain.value = 0.0; // 最初は無音
+
+  osc.connect(gain);
+  gain.connect(ctx.destination);
+
+  osc.start();
+}
+
+function rampTo(value, t = 0.02) {
+  const now = ctx.currentTime;
+  gain.gain.cancelScheduledValues(now);
+  gain.gain.setValueAtTime(gain.gain.value, now);
+  gain.gain.linearRampToValueAtTime(value, now + t);
+}
+
+function on() {
+  ensureAudio();
+  ctx.resume();               // iOS対策：ユーザー操作中にresume
+  rampTo(0.18, 0.015);        // 音量（会場でうるさければ下げる）
+  started = true;
+}
+
+function off() {
+  if (!ctx || !started) return;
+  rampTo(0.0, 0.03);          // クリックノイズ低減
+}
+
+const pad = document.getElementById("pad");
+
+// マウス
+pad.addEventListener("mousedown", (e) => { e.preventDefault(); on(); });
+window.addEventListener("mouseup", () => off());
+
+// タッチ
+pad.addEventListener("touchstart", (e) => { e.preventDefault(); on(); }, { passive:false });
+pad.addEventListener("touchend",   (e) => { e.preventDefault(); off(); }, { passive:false });
+pad.addEventListener("touchcancel",(e) => { e.preventDefault(); off(); }, { passive:false });
+
+// 画面外に指がズレても止める（保険）
+window.addEventListener("blur", () => off());
+document.addEventListener("visibilitychange", () => { if (document.hidden) off(); });
+</script>
+</body>
+</html>
