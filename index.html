@@ -174,11 +174,11 @@
 
   Bug A (noise):
   - About 1/15 chance per press to switch to NOISE mode while held
-  - Noise has 3 types; volume reduced to 20%
+  - 3 noise types; volume 20%
 
-  Bug B (ikeda-ish beeps):
+  Bug B (pip/keen):
   - About 1/12 chance per press to fire ONE-SHOT glitch beep (5 types)
-  - Volume 20%, triggered on tap start (while held)
+  - Sine-only; volume 20%
 */
 
 let ctx, master, gate;
@@ -189,7 +189,7 @@ let noiseGain;
 let noiseSrc = null;
 let iosUnlocked = false;
 
-let glitchBus; // summed into master (bypasses gate, but still under master gain)
+let glitchBus;
 
 const pad = document.getElementById("pad");
 const hit = document.getElementById("hit");
@@ -198,14 +198,14 @@ const dot = document.getElementById("dot");
 const MIN_MS = 160;
 const MAX_MS = 900;
 
-/* master volume (you earlier liked ~60% of 0.16) */
+/* main held volume */
 const MASTER_LEVEL = 0.096;
 
-/* noise + glitch are 20% of the held level */
+/* bug volume (noise + pip) */
 const BUG_LEVEL = 0.20;
 
 /* probabilities */
-const NOISE_PROB = 1/15;
+const NOISE_PROB  = 1/15;
 const GLITCH_PROB = 1/12;
 
 /* Fmaj7(9): F A C E G */
@@ -223,19 +223,19 @@ let y01 = 0.5;
 let holding = false;
 
 let bugMode = false;
-let bugType = 0; // 0: white / 1: pink-ish / 2: digital
+let bugType = 0;
 
 function clamp01(v){ return Math.max(0, Math.min(1, v)); }
 function pickRandomNote(){ return MID[(Math.random() * MID.length) | 0]; }
 
 /* Y = pitch : top high, bottom low (mult 0.5..2.0) */
 function yToMult(y){
-  return 2.0 - 1.5 * y; // y=0 -> 2.0, y=1 -> 0.5
+  return 2.0 - 1.5 * y;
 }
 
 /* X = interval : right fast, left slow */
 function xToMs(x){
-  return MAX_MS - (MAX_MS - MIN_MS) * x; // x=0 -> MAX, x=1 -> MIN
+  return MAX_MS - (MAX_MS - MIN_MS) * x;
 }
 
 /* gate LFO frequency: ON=ms, OFF=ms => full period=2ms => freq=500/ms */
@@ -259,10 +259,9 @@ function ensureAudio(){
   noiseGain.gain.value = 0.0;
 
   glitchBus = ctx.createGain();
-  glitchBus.gain.value = BUG_LEVEL; // 20% (under master)
+  glitchBus.gain.value = BUG_LEVEL; // 20%
   glitchBus.connect(master);
 
-  // oscillator (always running)
   osc = ctx.createOscillator();
   osc.type = "sine";
   osc.frequency.value = current.hz;
@@ -403,128 +402,79 @@ function stopNoise(){
   noiseSrc = null;
 }
 
-/* ---------- Glitch one-shots (5 types) ---------- */
+/* ---------- Glitch one-shots (5 types, SINE ONLY) ---------- */
 function playGlitchOneShot(type){
   if (!ctx) return;
 
   const now = ctx.currentTime;
 
-  // voice gain envelope (into glitchBus -> master)
   const g = ctx.createGain();
   g.gain.setValueAtTime(0.0, now);
   g.connect(glitchBus);
 
-  const attack = 0.0015;
+  const o = ctx.createOscillator();
+  o.type = "sine";
+  o.connect(g);
 
-  // helper: schedule and cleanup
-  function stopAt(tEnd, nodes=[]){
+  function stopAt(tEnd){
     g.gain.linearRampToValueAtTime(0.0, tEnd);
     setTimeout(() => {
+      try{ o.stop(); }catch(e){}
+      try{ o.disconnect(); }catch(e){}
       try{ g.disconnect(); }catch(e){}
-      nodes.forEach(n=>{
-        try{ n.stop?.(); }catch(e){}
-        try{ n.disconnect?.(); }catch(e){}
-      });
     }, Math.max(0, (tEnd - now) * 1000 + 50));
   }
 
-  // Type designs (ikeda-ish: sharp, short, clinical)
   if (type === 0){
-    // "pip" ultra short high sine
-    const o = ctx.createOscillator();
-    o.type = "sine";
+    // tiny pip
     o.frequency.setValueAtTime(6200, now);
-    o.connect(g);
     o.start(now);
-    g.gain.linearRampToValueAtTime(1.0, now + attack);
-    const tEnd = now + 0.035;
-    stopAt(tEnd, [o]);
+    g.gain.linearRampToValueAtTime(1.0, now + 0.0015);
+    stopAt(now + 0.030);
     return;
   }
 
   if (type === 1){
-    // "kinn" fast gliss up (sine)
-    const o = ctx.createOscillator();
-    o.type = "sine";
-    o.frequency.setValueAtTime(1800, now);
-    o.frequency.exponentialRampToValueAtTime(9200, now + 0.055);
-    o.connect(g);
+    // longer keen
+    o.frequency.setValueAtTime(3800, now);
     o.start(now);
-    g.gain.linearRampToValueAtTime(1.0, now + attack);
-    const tEnd = now + 0.07;
-    stopAt(tEnd, [o]);
+    g.gain.linearRampToValueAtTime(1.0, now + 0.0015);
+    stopAt(now + 0.070);
     return;
   }
 
   if (type === 2){
-    // "chirp" FM-ish metallic ping
-    const car = ctx.createOscillator();
-    const mod = ctx.createOscillator();
-    const modGain = ctx.createGain();
-
-    car.type = "sine";
-    mod.type = "sine";
-
-    car.frequency.setValueAtTime(3400, now);
-    mod.frequency.setValueAtTime(280, now);
-    modGain.gain.setValueAtTime(1800, now);
-    modGain.gain.exponentialRampToValueAtTime(40, now + 0.08);
-
-    mod.connect(modGain);
-    modGain.connect(car.frequency);
-
-    car.connect(g);
-
-    car.start(now);
-    mod.start(now);
-
-    g.gain.linearRampToValueAtTime(1.0, now + attack);
-    const tEnd = now + 0.09;
-    stopAt(tEnd, [car, mod, modGain]);
+    // upward chirp
+    o.frequency.setValueAtTime(1800, now);
+    o.frequency.exponentialRampToValueAtTime(9200, now + 0.055);
+    o.start(now);
+    g.gain.linearRampToValueAtTime(1.0, now + 0.0015);
+    stopAt(now + 0.070);
     return;
   }
 
   if (type === 3){
-    // "tick" bandpass noise burst
-    const bufLen = Math.floor(ctx.sampleRate * 0.05);
-    const buf = ctx.createBuffer(1, bufLen, ctx.sampleRate);
-    const d = buf.getChannelData(0);
-    for (let i=0;i<bufLen;i++) d[i] = (Math.random()*2 - 1);
-
-    const src = ctx.createBufferSource();
-    src.buffer = buf;
-
-    const bp = ctx.createBiquadFilter();
-    bp.type = "bandpass";
-    bp.frequency.setValueAtTime(5200, now);
-    bp.Q.setValueAtTime(18, now);
-
-    src.connect(bp);
-    bp.connect(g);
-
-    src.start(now);
-    g.gain.linearRampToValueAtTime(1.0, now + attack);
-    const tEnd = now + 0.06;
-    stopAt(tEnd, [src, bp]);
+    // downward chirp
+    o.frequency.setValueAtTime(9400, now);
+    o.frequency.exponentialRampToValueAtTime(2200, now + 0.050);
+    o.start(now);
+    g.gain.linearRampToValueAtTime(1.0, now + 0.0015);
+    stopAt(now + 0.065);
     return;
   }
 
-  // type === 4
-  // "dual" two close sines beating (clinical)
-  const o1 = ctx.createOscillator();
-  const o2 = ctx.createOscillator();
-  o1.type = "sine";
-  o2.type = "sine";
-  o1.frequency.setValueAtTime(4100, now);
-  o2.frequency.setValueAtTime(4175, now);
-  o1.connect(g);
-  o2.connect(g);
-  o1.start(now);
-  o2.start(now);
+  // type === 4 : double blip
+  o.frequency.setValueAtTime(5400, now);
+  o.start(now);
 
-  g.gain.linearRampToValueAtTime(1.0, now + attack);
-  const tEnd = now + 0.08;
-  stopAt(tEnd, [o1, o2]);
+  g.gain.linearRampToValueAtTime(1.0, now + 0.0015);
+  g.gain.linearRampToValueAtTime(0.0, now + 0.020);
+
+  g.gain.setValueAtTime(0.0, now + 0.028);
+  g.gain.linearRampToValueAtTime(1.0, now + 0.030);
+  g.gain.linearRampToValueAtTime(0.0, now + 0.050);
+
+  stopAt(now + 0.055);
 }
 
 /* ---------- start/stop ---------- */
@@ -540,7 +490,7 @@ function startAudioGesture(){
 
     current = pickRandomNote();
 
-    // BUG B: 1/12 chance on press → fire one-shot glitch (5 types)
+    // BUG B: 1/12 chance on press → one-shot pip/keen
     if (Math.random() < GLITCH_PROB){
       const t = (Math.random()*5)|0;
       playGlitchOneShot(t);
@@ -553,7 +503,7 @@ function startAudioGesture(){
     if (bugMode){
       startNoise(bugType);
       ramp(oscGain.gain, 0.0, 0.02);
-      ramp(noiseGain.gain, BUG_LEVEL, 0.02); // 20% (was 1.0)
+      ramp(noiseGain.gain, BUG_LEVEL, 0.02); // 20%
     } else {
       stopNoise();
       ramp(noiseGain.gain, 0.0, 0.02);
