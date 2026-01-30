@@ -13,9 +13,8 @@
       --edge:#13233a;
 
       --text:#d7deea;
-      --muted:#9aa8bd;
-
       --ind:#9fe3b6;
+
       --shadow: rgba(0,0,0,.70);
     }
     *{box-sizing:border-box}
@@ -28,9 +27,9 @@
         radial-gradient(900px 540px at 55% 10%, rgba(255,255,255,.05), transparent 60%),
         radial-gradient(1000px 700px at 40% 120%, rgba(255,255,255,.03), transparent 58%),
         linear-gradient(180deg, var(--bg1) 0%, var(--bg0) 100%);
-      color: var(--text);
       font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
       letter-spacing:.45px;
+      color: var(--text);
     }
 
     .wrap{width:min(860px, 94vw); padding:22px;}
@@ -45,17 +44,12 @@
     }
 
     .top{
-      display:flex;
-      align-items:flex-start;
-      justify-content:space-between;
-      gap:14px;
-      padding:16px 16px 12px 16px;
+      padding:16px;
       border-bottom:1px solid rgba(19,35,58,.9);
       background:
         linear-gradient(180deg, rgba(255,255,255,.03), rgba(0,0,0,0) 70%),
         linear-gradient(90deg, rgba(0,0,0,.25), transparent 45%, rgba(0,0,0,.35));
     }
-
     .title{
       font-size:14px;
       font-weight:900;
@@ -66,235 +60,81 @@
       -webkit-user-select:none;
     }
 
-    .panelRight{
-      display:flex;
-      flex-direction:column;
-      align-items:flex-end;
-      gap:8px;
-      min-width: 220px;
-    }
-
-    .lamps{
-      display:flex;
-      align-items:center;
-      gap:10px;
-    }
-    .lampLabel{
-      font-size:10px;
-      font-weight:900;
-      text-transform:uppercase;
-      letter-spacing:1.4px;
-      color: rgba(154,168,189,.90);
-      user-select:none;
-      -webkit-user-select:none;
-    }
-    .lamp{
-      width:11px; height:11px;
-      border-radius:99px;
-      background: rgba(159,227,182,.06);
-      border: 1px solid rgba(159,227,182,.18);
-      box-shadow: inset 0 1px 1px rgba(255,255,255,.05);
-    }
-    .lamp.on{
-      background: rgba(159,227,182,.78);
-      border-color: rgba(159,227,182,.45);
-      box-shadow: 0 0 10px rgba(159,227,182,.18);
-    }
-
-    .readout{
-      width: 100%;
-      border: 1px solid rgba(255,255,255,.06);
-      background: rgba(0,0,0,.28);
-      color: rgba(215,222,234,.88);
-      padding: 10px 11px;
-      border-radius: 10px;
-      box-shadow: inset 0 1px 0 rgba(255,255,255,.04);
-      font-size: 12px;
-      font-weight: 900;
-      text-transform: uppercase;
-      letter-spacing: 1.2px;
-      font-variant-numeric: tabular-nums;
-      user-select:none;
-      -webkit-user-select:none;
-    }
-
     .mid{
-      padding:18px 16px 16px 16px;
+      padding:16px;
       background: linear-gradient(180deg, rgba(255,255,255,.02), rgba(0,0,0,.24));
     }
 
-    .btnPlate{
+    /* XY Pad */
+    .padPlate{
       width:100%;
-      height:280px;
+      height:min(62vh, 520px);
       border-radius:16px;
       border:1px solid rgba(255,255,255,.05);
-      background: rgba(0,0,0,.12);
+      background:
+        linear-gradient(180deg, rgba(255,255,255,.02), rgba(0,0,0,.22));
       box-shadow: inset 0 1px 0 rgba(255,255,255,.03);
-      display:grid;
-      place-items:center;
-      padding: 18px;
+      position:relative;
+      overflow:hidden;
     }
 
-    .pressBtn{
-      width:100%;
-      height: 180px;
-      border-radius:14px;
-      border:1px solid rgba(255,255,255,.08);
-      background:
-        linear-gradient(180deg, rgba(255,255,255,.06), rgba(0,0,0,.35)),
-        #07101c;
-      box-shadow:
-        0 18px 36px rgba(0,0,0,.55),
-        inset 0 2px 0 rgba(255,255,255,.06),
-        inset 0 -18px 24px rgba(0,0,0,.55);
-      cursor:pointer;
-      user-select:none;
-      -webkit-user-select:none;
-      touch-action:none;
-      position:relative;
-      transition: transform .06s ease, box-shadow .06s ease, border-color .12s ease;
-      display:grid;
-      place-items:center;
-      padding: 12px;
-      -webkit-tap-highlight-color: transparent;
-      outline: none;
-    }
-    .pressBtn::before{
+    /* Subtle grid — no text */
+    .padPlate::before{
       content:"";
       position:absolute;
-      inset:12px;
-      border-radius:10px;
-      border:1px solid rgba(255,255,255,.06);
+      inset:0;
+      background:
+        linear-gradient(rgba(255,255,255,.06) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255,255,255,.06) 1px, transparent 1px);
+      background-size: 16px 16px;
+      opacity:.18;
       pointer-events:none;
     }
-    .pressBtn span{
-      font-size: 28px;
-      font-weight: 900;
-      letter-spacing: 5px;
-      text-transform: uppercase;
-      color: rgba(215,222,234,.44);
-      user-select:none;
-      -webkit-user-select:none;
+
+    /* center cross hair */
+    .padPlate::after{
+      content:"";
+      position:absolute;
+      left:50%; top:50%;
+      width:1px; height:100%;
+      background: rgba(255,255,255,.08);
+      transform:translate(-50%,-50%);
+      box-shadow: 0 0 0 9999px rgba(0,0,0,0);
+      pointer-events:none;
     }
-    .pressBtn:active{
-      transform: translateY(2px) scale(0.997);
-      border-color: rgba(159,227,182,.20);
-      box-shadow:
-        0 12px 26px rgba(0,0,0,.55),
-        inset 0 2px 0 rgba(255,255,255,.04),
-        inset 0 -12px 18px rgba(0,0,0,.62);
-    }
-    .pressBtn:active span{
-      color: rgba(215,222,234,.54);
+    .crossH{
+      position:absolute;
+      left:0; top:50%;
+      width:100%; height:1px;
+      background: rgba(255,255,255,.08);
+      transform:translateY(-50%);
+      pointer-events:none;
     }
 
-    .bottom{
-      border-top:1px solid rgba(19,35,58,.9);
-      padding:14px 16px 16px 16px;
-      display:grid;
-      gap:12px;
-      background: linear-gradient(180deg, rgba(255,255,255,.015), rgba(0,0,0,.24));
+    /* indicator dot */
+    .dot{
+      position:absolute;
+      width:14px; height:14px;
+      border-radius:999px;
+      background: rgba(159,227,182,.70);
+      border:1px solid rgba(159,227,182,.35);
+      box-shadow: 0 0 10px rgba(159,227,182,.18);
+      transform: translate(-50%,-50%);
+      pointer-events:none;
+      opacity:.9;
+    }
+    .dot.off{
+      opacity:.25;
+      background: rgba(159,227,182,.20);
+      box-shadow:none;
     }
 
-    .row{
-      display:flex;
-      align-items:center;
-      justify-content:space-between;
-      gap:12px;
-    }
-    .label{
-      font-size:11px;
-      font-weight:900;
-      text-transform:uppercase;
-      letter-spacing:1.6px;
-      color: rgba(154,168,189,.95);
-      white-space:nowrap;
-      user-select:none;
-      -webkit-user-select:none;
-    }
-
-    .seg{display:flex; gap:8px;}
-    .seg input{display:none;}
-    .seg label{
-      padding:10px 10px;
-      border-radius:10px;
-      border:1px solid rgba(255,255,255,.08);
-      background: rgba(0,0,0,.18);
-      color: rgba(215,222,234,.78);
-      font-size:11px;
-      font-weight:900;
-      text-transform:uppercase;
-      letter-spacing:1.4px;
-      cursor:pointer;
-      user-select:none;
-      -webkit-user-select:none;
+    /* Make sure iOS doesn't scroll */
+    .padHit{
+      position:absolute;
+      inset:0;
+      touch-action:none;
       -webkit-tap-highlight-color: transparent;
-    }
-    .seg input:checked + label{
-      border-color: rgba(255,255,255,.14);
-      background: rgba(255,255,255,.06);
-      color: rgba(215,222,234,.92);
-    }
-
-    /* slider: position only */
-    .sliderWrap{
-      display:flex;
-      align-items:center;
-      gap:12px;
-      width:100%;
-    }
-    input[type="range"]{
-      width:100%;
-      -webkit-appearance:none;
-      appearance:none;
-      background: transparent;
-      height: 28px;
-    }
-    input[type="range"]::-webkit-slider-runnable-track{
-      height: 4px;
-      background: rgba(255,255,255,.12);
-      border-radius: 999px;
-      border: 1px solid rgba(0,0,0,.35);
-    }
-    input[type="range"]::-moz-range-track{
-      height: 4px;
-      background: rgba(255,255,255,.12);
-      border-radius: 999px;
-      border: 1px solid rgba(0,0,0,.35);
-    }
-    input[type="range"]::-webkit-slider-thumb{
-      -webkit-appearance:none;
-      appearance:none;
-      width: 18px; height: 18px;
-      border-radius: 999px;
-      background: rgba(215,222,234,.92);
-      border: 1px solid rgba(0,0,0,.55);
-      box-shadow:
-        0 6px 14px rgba(0,0,0,.45),
-        inset 0 1px 0 rgba(255,255,255,.22);
-      margin-top: -8px;
-    }
-    input[type="range"]::-moz-range-thumb{
-      width: 18px; height: 18px;
-      border-radius: 999px;
-      background: rgba(215,222,234,.92);
-      border: 1px solid rgba(0,0,0,.55);
-      box-shadow:
-        0 6px 14px rgba(0,0,0,.45),
-        inset 0 1px 0 rgba(255,255,255,.22);
-    }
-
-    .ms{
-      min-width: 96px;
-      text-align:right;
-      font-size:11px;
-      font-weight:900;
-      text-transform:uppercase;
-      letter-spacing:1.2px;
-      font-variant-numeric: tabular-nums;
-      color: rgba(154,168,189,.95);
-      user-select:none;
-      -webkit-user-select:none;
     }
   </style>
 </head>
@@ -304,65 +144,42 @@
     <div class="unit">
       <div class="top">
         <div class="title">YORU NO TSUSHIN</div>
-
-        <div class="panelRight">
-          <div class="lamps">
-            <div class="lampLabel">TX</div>
-            <div class="lamp" id="lamp"></div>
-          </div>
-          <div class="readout" id="readout">—</div>
-        </div>
       </div>
 
       <div class="mid">
-        <div class="btnPlate">
-          <button class="pressBtn" id="pad" type="button" aria-label="Transmit">
-            <span>TRANSMIT</span>
-          </button>
-        </div>
-      </div>
-
-      <div class="bottom">
-        <div class="row">
-          <div class="label">BAND</div>
-          <div class="seg" role="radiogroup" aria-label="band">
-            <input id="bandLow"  name="band" type="radio" checked>
-            <label for="bandLow">LOW</label>
-
-            <input id="bandMid"  name="band" type="radio">
-            <label for="bandMid">MID</label>
-
-            <input id="bandHigh" name="band" type="radio">
-            <label for="bandHigh">HIGH</label>
-          </div>
-        </div>
-
-        <div class="row">
-          <div class="label">INTERVAL</div>
-          <div class="sliderWrap">
-            <input id="interval" type="range" min="160" max="900" value="420" step="10" />
-            <div class="ms"><span id="msLabel">420</span> MS</div>
-          </div>
+        <div class="padPlate" id="pad">
+          <div class="crossH"></div>
+          <div class="dot off" id="dot"></div>
+          <div class="padHit" id="hit" aria-label="XY pad"></div>
         </div>
       </div>
     </div>
   </div>
 
 <script>
-let ctx, osc, gate, master;
-let isHolding = false;
-let timer = null;
-let phaseOn = false;
+/**
+ * XY PAD mapping:
+ *  y: top = slow (interval long), bottom = fast (interval short)
+ *  x: left = LOW, right = HIGH (continuous)
+ *
+ * Notes: random pick from Fmaj7(9): F A C E G
+ * Tone: sine + "busy tone" gating (square LFO -> waveshaper -> gain)
+ */
 
+let ctx, osc, gate, master;
+let lfo, shaper, lfoDepth;
 let armed = false;
 let iosUnlocked = false;
 
-const lamp = document.getElementById("lamp");
-const readout = document.getElementById("readout");
 const pad = document.getElementById("pad");
-const interval = document.getElementById("interval");
-const msLabel = document.getElementById("msLabel");
+const hit = document.getElementById("hit");
+const dot = document.getElementById("dot");
 
+// interval range (ms)
+const MIN_MS = 160; // fastest
+const MAX_MS = 900; // slowest
+
+// base chord tones (MID set)
 const MID = [
   { name: "F", hz: 349.228 },
   { name: "A", hz: 440.000 },
@@ -371,19 +188,46 @@ const MID = [
   { name: "G", hz: 783.991 },
 ];
 
-const BAND_MULT = { LOW: 0.5, MID: 1.0, HIGH: 2.0 };
 let current = MID[0];
+
+// current XY state
+let x01 = 0.5; // 0..1
+let y01 = 0.5; // 0..1
+let holding = false;
+
+function clamp01(v){ return Math.max(0, Math.min(1, v)); }
+function pickRandomNote(){
+  return MID[(Math.random() * MID.length) | 0];
+}
+
+// x mapping: piecewise so center ~= 1.0, left min 0.5, right max 2.0
+function xToMult(x){
+  if (x < 0.5) return 0.5 + x * 1.0;        // 0.5..1.0
+  return 1.0 + (x - 0.5) * 2.0;             // 1.0..2.0
+}
+
+// y mapping: top slow (MAX), bottom fast (MIN)
+function yToMs(y){
+  return MAX_MS - (MAX_MS - MIN_MS) * y;    // linear
+}
+
+// LFO frequency: square wave toggles each half-cycle
+// ON = interval, OFF = interval => full period = 2*ms => freq = 1/(2*sec) = 500/ms
+function msToLfoHz(ms){
+  return 500 / ms;
+}
 
 function ensureAudio(){
   if (ctx) return;
-  // iOS互換のため、オプション無しで生成（これが一番安全）
+
   ctx = new (window.AudioContext || window.webkitAudioContext)();
 
+  // Main audio path
   master = ctx.createGain();
   master.gain.value = 0.0;
 
   gate = ctx.createGain();
-  gate.gain.value = 0.0;
+  gate.gain.value = 0.0; // will be driven by LFO
 
   osc = ctx.createOscillator();
   osc.type = "sine";
@@ -394,11 +238,36 @@ function ensureAudio(){
   master.connect(ctx.destination);
 
   osc.start();
+
+  // Busy gate generator
+  lfo = ctx.createOscillator();
+  lfo.type = "square";
+  lfo.frequency.value = msToLfoHz(yToMs(y01));
+
+  // square (-1..1) -> (0..1)
+  shaper = ctx.createWaveShaper();
+  const N = 1024;
+  const curve = new Float32Array(N);
+  for (let i = 0; i < N; i++){
+    const x = (i / (N - 1)) * 2 - 1;
+    curve[i] = x >= 0 ? 1 : 0;
+  }
+  shaper.curve = curve;
+  shaper.oversample = "4x";
+
+  // depth: 0 (off) or 1 (on)
+  lfoDepth = ctx.createGain();
+  lfoDepth.gain.value = 0.0;
+
+  lfo.connect(shaper);
+  shaper.connect(lfoDepth);
+  lfoDepth.connect(gate.gain);
+
+  lfo.start();
 }
 
 function unlockIOSOnce(){
   if (!ctx || iosUnlocked) return;
-  // “無音バッファを1回鳴らす” iOSアンロック定番
   try{
     const buffer = ctx.createBuffer(1, 1, ctx.sampleRate);
     const src = ctx.createBufferSource();
@@ -407,9 +276,7 @@ function unlockIOSOnce(){
     src.start(0);
     src.stop(0.01);
     iosUnlocked = true;
-  }catch(e){
-    // 失敗しても致命傷ではない
-  }
+  }catch(e){}
 }
 
 function ramp(param, value, t=0.02){
@@ -419,141 +286,104 @@ function ramp(param, value, t=0.02){
   param.linearRampToValueAtTime(value, now + t);
 }
 
-function band(){
-  if (document.getElementById("bandHigh").checked) return "HIGH";
-  if (document.getElementById("bandMid").checked)  return "MID";
-  return "LOW";
-}
+function applyXY(){
+  // update dot position
+  const r = pad.getBoundingClientRect();
+  dot.style.left = (x01 * r.width) + "px";
+  dot.style.top  = (y01 * r.height) + "px";
 
-function pickRandomNote(){
-  return MID[(Math.random() * MID.length) | 0];
-}
+  if (!ctx || !osc || !lfo) return;
 
-function setLamp(active){ lamp.classList.toggle("on", !!active); }
+  const mult = xToMult(x01);
+  const ms = yToMs(y01);
 
-function applyCurrentFreq(){
-  const b = band();
-  const hz = current.hz * BAND_MULT[b];
+  // random tiny detune so it feels “alive”
   const det = 1 + (Math.random()*0.002 - 0.001);
-  osc.frequency.value = hz * det;
-  readout.textContent = `${hz.toFixed(2)} HZ`;
+  osc.frequency.value = (current.hz * mult) * det;
+
+  lfo.frequency.value = msToLfoHz(ms);
 }
 
-function startBusy(){
-  if (timer) return;
-  phaseOn = false;
-
-  const step = () => {
-    if (!isHolding) return;
-
-    const ms = Number(interval.value);
-    phaseOn = !phaseOn;
-
-    if (phaseOn){
-      ramp(gate.gain, 1.0, 0.01);
-      ramp(master.gain, 0.16, 0.015);
-      setLamp(true);
-      timer = setTimeout(step, ms);
-    } else {
-      ramp(gate.gain, 0.0, 0.03);
-      ramp(master.gain, 0.0, 0.05);
-      setLamp(false);
-      timer = setTimeout(step, ms);
-    }
-  };
-  step();
-}
-
-function stopBusy(){
-  if (timer){
-    clearTimeout(timer);
-    timer = null;
-  }
-  if (ctx){
-    ramp(gate.gain, 0.0, 0.04);
-    ramp(master.gain, 0.0, 0.06);
-  }
-  setLamp(false);
-  if (ctx) applyCurrentFreq();
-}
-
-function actuallyStart(){
-  isHolding = true;
-  current = pickRandomNote();
-  applyCurrentFreq();
-  startBusy();
-}
-
-function holdOn(){
-  // ここは “await しない” のがiOSに効く
+function armAndStart(){
   ensureAudio();
-
-  // Hz表示は即更新（イベントが来てるか確認にもなる）
-  if (!ctx){
-    readout.textContent = "—";
-    return;
-  }
-
-  // iOSアンロック + resume を同期的に発火
   unlockIOSOnce();
-  const p = ctx.resume();
-  // resumeはPromiseだが、呼び出し自体がユーザージェスチャ内で重要
-  p.then(() => {
+
+  // Important: call resume inside user gesture
+  ctx.resume().then(() => {
     armed = (ctx.state === "running");
     if (!armed) return;
-    actuallyStart();
+
+    holding = true;
+    dot.classList.remove("off");
+
+    // choose note on press
+    current = pickRandomNote();
+    applyXY();
+
+    // turn on gating + volume
+    ramp(lfoDepth.gain, 1.0, 0.02);
+    ramp(master.gain, 0.16, 0.02);
   }).catch(() => {
     armed = false;
-    // “ここまで来る”=ブラウザ/設定に阻まれてる
-    readout.textContent = "BLOCKED";
   });
-
-  // “即時反応”としてHzだけ先に更新（音はresume後に鳴る）
-  current = pickRandomNote();
-  if (osc) applyCurrentFreq();
 }
 
-function holdOff(){
-  isHolding = false;
-  stopBusy();
+function stop(){
+  holding = false;
+  dot.classList.add("off");
+  if (!ctx) return;
+  // fade out
+  ramp(lfoDepth.gain, 0.0, 0.03);
+  ramp(master.gain, 0.0, 0.05);
 }
 
-/* UI updates */
-function updateLabel(){ msLabel.textContent = interval.value; }
-interval.addEventListener("input", updateLabel);
-updateLabel();
-
-["bandLow","bandMid","bandHigh"].forEach(id=>{
-  document.getElementById(id).addEventListener("change", ()=>{
-    const b = band();
-    const hz = current.hz * BAND_MULT[b];
-    readout.textContent = `${hz.toFixed(2)} HZ`;
-    if (ctx && osc) applyCurrentFreq();
-  });
-});
-
-/* Events: pointer優先（iPhoneも最近はこれが一番安定） */
-if (window.PointerEvent){
-  pad.addEventListener("pointerdown", (e)=>{ e.preventDefault(); holdOn(); }, {passive:false});
-  pad.addEventListener("pointerup",   (e)=>{ e.preventDefault(); holdOff(); }, {passive:false});
-  pad.addEventListener("pointercancel",(e)=>{ e.preventDefault(); holdOff(); }, {passive:false});
-} else {
-  pad.addEventListener("touchstart", (e)=>{ e.preventDefault(); holdOn(); }, {passive:false});
-  pad.addEventListener("touchend", (e)=>{ e.preventDefault(); holdOff(); }, {passive:false});
-  pad.addEventListener("touchcancel", (e)=>{ e.preventDefault(); holdOff(); }, {passive:false});
-  pad.addEventListener("mousedown", (e)=>{ e.preventDefault(); holdOn(); });
-  window.addEventListener("mouseup", ()=> holdOff());
+function updateFromEvent(e){
+  const r = pad.getBoundingClientRect();
+  const cx = (e.clientX - r.left) / r.width;
+  const cy = (e.clientY - r.top) / r.height;
+  x01 = clamp01(cx);
+  y01 = clamp01(cy);
+  applyXY();
 }
 
-/* Safety */
-window.addEventListener("blur", ()=> holdOff());
-document.addEventListener("visibilitychange", ()=>{ if (document.hidden) holdOff(); });
+// Pointer Events (best cross-platform)
+let pid = null;
 
-/* Initial readout */
+hit.addEventListener("pointerdown", (e) => {
+  e.preventDefault();
+  pid = e.pointerId;
+  hit.setPointerCapture(pid);
+  updateFromEvent(e);
+  armAndStart();
+}, {passive:false});
+
+hit.addEventListener("pointermove", (e) => {
+  if (!holding) return;
+  if (pid !== null && e.pointerId !== pid) return;
+  e.preventDefault();
+  updateFromEvent(e);
+}, {passive:false});
+
+hit.addEventListener("pointerup", (e) => {
+  if (pid !== null && e.pointerId !== pid) return;
+  e.preventDefault();
+  pid = null;
+  stop();
+}, {passive:false});
+
+hit.addEventListener("pointercancel", (e) => {
+  e.preventDefault();
+  pid = null;
+  stop();
+}, {passive:false});
+
+// Safety
+window.addEventListener("blur", stop);
+document.addEventListener("visibilitychange", () => { if (document.hidden) stop(); });
+
+// Init dot position
 (function init(){
-  const b = band();
-  const hz = current.hz * BAND_MULT[b];
-  readout.textContent = `${hz.toFixed(2)} HZ`;
+  applyXY();
 })();
 </script>
 </body>
