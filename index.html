@@ -22,6 +22,8 @@
       --shadow: rgba(0,0,0,.62);
 
       --txt: rgba(255,255,255,.22);
+      --btnTxt: rgba(255,255,255,.28);
+      --btnTxtOn: rgba(255,255,255,.55);
     }
 
     *{box-sizing:border-box}
@@ -56,7 +58,7 @@
       position:relative;
       overflow:hidden;
 
-      touch-action:none;               /* pointer events multi-touch */
+      touch-action:none;
       -webkit-tap-highlight-color: transparent;
       user-select:none;
       -webkit-user-select:none;
@@ -115,13 +117,50 @@
       pointer-events:none;
       opacity:.92;
     }
-    .dot.off{ opacity:.28; background: rgba(0,0,255,.35); box-shadow:none; }
-
     .dot.dot2{
       width:10px; height:10px;
       opacity:.75;
       background: rgba(0,0,255,.70);
       box-shadow: 0 0 12px rgba(0,0,255,.20);
+    }
+
+    /* ★触れてない時は完全に消す */
+    .dot.hidden{ display:none; }
+
+    /* LOOP button */
+    .loopBtn{
+      position:absolute;
+      left:14px;
+      bottom:14px;
+      padding:10px 12px;
+      border-radius:10px;
+      border:1px solid rgba(0,0,255,.55);
+      background: rgba(255,255,255,.06);
+      box-shadow:
+        inset 0 1px 0 rgba(255,255,255,.20),
+        inset 0 -1px 0 rgba(0,0,0,.12);
+      font-family:"Oxanium", ui-monospace, monospace;
+      font-weight:300;
+      letter-spacing:2.4px;
+      text-transform: lowercase;
+      color: var(--btnTxt);
+      cursor:pointer;
+      touch-action: manipulation;
+      -webkit-tap-highlight-color: transparent;
+      user-select:none;
+      -webkit-user-select:none;
+    }
+    .loopBtn:active{
+      transform: translateY(1px);
+    }
+    .loopBtn.on{
+      border-color: rgba(0,0,255,.95);
+      background: rgba(0,0,255,.12);
+      color: var(--btnTxtOn);
+      box-shadow:
+        0 0 18px rgba(0,0,255,.18),
+        inset 0 1px 0 rgba(255,255,255,.22),
+        inset 0 -1px 0 rgba(0,0,0,.12);
     }
   </style>
 </head>
@@ -132,30 +171,26 @@
       <div class="slab" aria-hidden="true"></div>
       <div class="ghost" aria-hidden="true">yoru no tsushin</div>
 
-      <div class="dot off" id="dot1"></div>
-      <div class="dot dot2 off" id="dot2"></div>
+      <button class="loopBtn" id="loopBtn" aria-label="loop">loop</button>
+
+      <div class="dot hidden" id="dot1"></div>
+      <div class="dot dot2 hidden" id="dot2"></div>
     </div>
   </div>
 
 <script>
 /* =========================================================
-   yoru no tsushin — PRO / 2-touch / mobile-hardened
-   - Up/Down: pitch (wide)
-   - Left/Right: interval speed (wide, right fast)
-   - Each finger has its own busy-tone gate (independent LFO)
-   - 1/15: noise glitch while held (3 types) @20%
-   - 1/12: SF UI beep one-shot (5 types) @20%
-   - iOS/Chrome: hard resume + bfcache recovery + context recreate fallback
-   - Light limiter (compressor) to avoid clipping on 2 voices
+   yoru no tsushin — PRO / 2-touch / mobile-hardened + LOOP latch
 ========================================================= */
 
 const pad = document.getElementById("pad");
+const loopBtn = document.getElementById("loopBtn");
 const dot1 = document.getElementById("dot1");
 const dot2 = document.getElementById("dot2");
 
 /* ranges */
-const MIN_MS = 60;     // right fast
-const MAX_MS = 1800;   // left slow
+const MIN_MS = 60;
+const MAX_MS = 1800;
 const PITCH_MIN_MULT = 0.35;
 const PITCH_MAX_MULT = 3.00;
 
@@ -169,17 +204,16 @@ const GLITCH_PROB = 1/12;
 
 /* chord tones: Fmaj7(9) = F A C E G */
 const MID = [
-  { hz: 349.228 }, // F4
-  { hz: 440.000 }, // A4
-  { hz: 523.251 }, // C5
-  { hz: 659.255 }, // E5
-  { hz: 783.991 }, // G5
+  { hz: 349.228 },
+  { hz: 440.000 },
+  { hz: 523.251 },
+  { hz: 659.255 },
+  { hz: 783.991 },
 ];
 
 function clamp01(v){ return Math.max(0, Math.min(1, v)); }
 function pickRandomNote(){ return MID[(Math.random() * MID.length) | 0]; }
 
-/* curves */
 function yToMult(y){
   const t = 1 - y;
   const shaped = Math.pow(t, 1.15);
@@ -205,41 +239,47 @@ let whiteBuf=null, pinkBuf=null, digiBuf=null;
 let holding = false;
 let bugNoise = false;
 
-/* ===== geometry cache ===== */
+/* LOOP latch */
+let latched = false;         // loop button state
+let latchedTouchCount = 1;   // remember 1 or 2 voices when latched
+let lastXY1 = {x01:0.5, y01:0.5};
+let lastXY2 = {x01:0.5, y01:0.5};
+
+/* ===== geometry ===== */
 let padRect = null;
 function updateRect(){ padRect = pad.getBoundingClientRect(); }
 updateRect();
 window.addEventListener("resize", updateRect, {passive:true});
 window.addEventListener("scroll", updateRect, {passive:true});
 
-/* ===== pointer tracking (up to 2 pointers) ===== */
 const active = new Map(); // pointerId -> {x01,y01,lastTs}
+
 function getXY01(clientX, clientY){
   if (!padRect) updateRect();
   const x01 = clamp01((clientX - padRect.left) / padRect.width);
   const y01 = clamp01((clientY - padRect.top)  / padRect.height);
   return {x01,y01};
 }
+
 function syncDots(){
-  // assign deterministic order: insertion order of Map keys
   const ids = Array.from(active.keys()).slice(0,2);
   const a = ids[0] ? active.get(ids[0]) : null;
   const b = ids[1] ? active.get(ids[1]) : null;
 
   if (a){
-    dot1.classList.remove("off");
+    dot1.classList.remove("hidden");
     dot1.style.left = (a.x01 * padRect.width) + "px";
     dot1.style.top  = (a.y01 * padRect.height) + "px";
   } else {
-    dot1.classList.add("off");
+    dot1.classList.add("hidden");
   }
 
   if (b){
-    dot2.classList.remove("off");
+    dot2.classList.remove("hidden");
     dot2.style.left = (b.x01 * padRect.width) + "px";
     dot2.style.top  = (b.y01 * padRect.height) + "px";
   } else {
-    dot2.classList.add("off");
+    dot2.classList.add("hidden");
   }
 }
 
@@ -313,7 +353,7 @@ function stopNoise(){
   noiseSrc = null;
 }
 
-/* ===== voice builder: osc + independent gate (square LFO -> shaper -> gain) ===== */
+/* ===== voice ===== */
 function makeGateShaper(){
   const sh = ctx.createWaveShaper();
   const N = 1024;
@@ -336,13 +376,13 @@ function makeVoice(){
   v.osc.frequency.value = v.note.hz;
 
   v.toneGain = ctx.createGain();
-  v.toneGain.gain.value = 0.0; // will ramp to 1 when active (or 0 when noise mode)
+  v.toneGain.gain.value = 0.0;
 
   v.gateGain = ctx.createGain();
-  v.gateGain.gain.value = 0.0; // gate control
+  v.gateGain.gain.value = 0.0;
 
   v.out = ctx.createGain();
-  v.out.gain.value = 0.0; // per-voice overall (used to balance 1 vs 2 touches)
+  v.out.gain.value = 0.0;
 
   v.lfo = ctx.createOscillator();
   v.lfo.type = "square";
@@ -371,7 +411,6 @@ function setVoiceFromXY(v, x01, y01){
   if (!ctx) return;
   const mult = yToMult(y01);
   const ms = xToMs(x01);
-
   const det = 1 + (Math.random()*0.002 - 0.001);
   v.osc.frequency.value = (v.note.hz * mult) * det;
   v.lfo.frequency.value = msToLfoHz(ms);
@@ -386,7 +425,6 @@ function ensureAudio(){
   master = ctx.createGain();
   master.gain.value = 0.0;
 
-  // light limiter / anti-clip
   comp = ctx.createDynamicsCompressor();
   comp.threshold.value = -18;
   comp.knee.value = 10;
@@ -397,7 +435,6 @@ function ensureAudio(){
   master.connect(comp);
   comp.connect(ctx.destination);
 
-  // noise path shares the same master, but it will be gated by voice gates
   noiseGain = ctx.createGain();
   noiseGain.gain.value = 0.0;
   noiseGain.connect(master);
@@ -408,10 +445,6 @@ function ensureAudio(){
 
   voice1 = makeVoice();
   voice2 = makeVoice();
-
-  // start muted until gesture
-  voice1.out.gain.value = 0.0;
-  voice2.out.gain.value = 0.0;
 }
 
 function unlockIOSOnce(){
@@ -445,11 +478,10 @@ async function hardResumeAudio(){
     try { await ctx.resume(); } catch(e) {}
   }
 
-  // tiny audible-ish tick (super low) to force-route output (iOS/Chrome)
   try{
     const o = ctx.createOscillator();
     const g = ctx.createGain();
-    g.gain.value = 0.002; // slightly above "inaudible" to avoid being optimized away
+    g.gain.value = 0.002;
     o.frequency.value = 440;
     o.connect(g); g.connect(ctx.destination);
     o.start();
@@ -457,7 +489,7 @@ async function hardResumeAudio(){
   }catch(e){}
 }
 
-/* ===== SF UI beep one-shot (5 types) ===== */
+/* ===== SF UI beep ===== */
 function playGlitchOneShot(type){
   if (!ctx) return;
   const now = ctx.currentTime;
@@ -471,7 +503,6 @@ function playGlitchOneShot(type){
     setTimeout(() => { try { g.disconnect(); } catch(e){} }, Math.max(0, (at-now)*1000 + 80));
   }
 
-  // click transient
   const click = ctx.createBufferSource();
   const clickBuf = ctx.createBuffer(1, Math.floor(ctx.sampleRate*0.02), ctx.sampleRate);
   const cd = clickBuf.getChannelData(0);
@@ -493,7 +524,6 @@ function playGlitchOneShot(type){
 
   click.connect(bp); bp.connect(clickGain); clickGain.connect(g);
 
-  // tone stack + subtle FM
   const o1 = ctx.createOscillator();
   const o2 = ctx.createOscillator();
   o1.type = "sine";
@@ -513,7 +543,6 @@ function playGlitchOneShot(type){
   o1.connect(toneGain);
   o2.connect(toneGain);
 
-  // envelope
   const A = 0.002, D = 0.060;
   g.gain.linearRampToValueAtTime(1.0, now + A);
   g.gain.exponentialRampToValueAtTime(0.0008, now + A + D);
@@ -587,23 +616,32 @@ function playGlitchOneShot(type){
   }, 220);
 }
 
-/* ===== start/stop logic ===== */
+/* ===== core apply ===== */
 function applyVoicesFromActive(){
   const ids = Array.from(active.keys()).slice(0,2);
   const a = ids[0] ? active.get(ids[0]) : null;
   const b = ids[1] ? active.get(ids[1]) : null;
 
   if (a && voice1){
+    lastXY1 = {x01:a.x01, y01:a.y01};
     setVoiceFromXY(voice1, a.x01, a.y01);
   }
   if (b && voice2){
+    lastXY2 = {x01:b.x01, y01:b.y01};
     setVoiceFromXY(voice2, b.x01, b.y01);
+  }
+}
+
+function applyVoicesFromLatched(){
+  if (!voice1 || !voice2) return;
+  setVoiceFromXY(voice1, lastXY1.x01, lastXY1.y01);
+  if (latchedTouchCount >= 2){
+    setVoiceFromXY(voice2, lastXY2.x01, lastXY2.y01);
   }
 }
 
 function setMixForTouchCount(n){
   if (!ctx || !voice1 || !voice2) return;
-  // 2本鳴る時は各ボイス少し下げて破綻防止
   const v = (n >= 2) ? 0.60 : 0.85;
   ramp(voice1.out.gain, (n>=1) ? v : 0.0, 0.02);
   ramp(voice2.out.gain, (n>=2) ? v : 0.0, 0.02);
@@ -614,20 +652,17 @@ async function startIfNeeded(){
   unlockIOSOnce();
   await hardResumeAudio();
   if (!ctx || ctx.state !== "running") return;
-
   if (holding) return;
+
   holding = true;
 
-  // choose notes each time holding starts
   voice1.note = pickRandomNote();
   voice2.note = pickRandomNote();
 
-  // random one-shot SF beep
   if (Math.random() < GLITCH_PROB){
     playGlitchOneShot((Math.random()*5)|0);
   }
 
-  // noise glitch mode (global for this hold)
   bugNoise = (Math.random() < NOISE_PROB);
   if (bugNoise){
     const bugType = (Math.random()*3)|0;
@@ -642,16 +677,13 @@ async function startIfNeeded(){
     ramp(voice2.toneGain.gain, 1.0, 0.02);
   }
 
-  // enable gates
   ramp(voice1.lfoDepth.gain, 1.0, 0.02);
   ramp(voice2.lfoDepth.gain, 1.0, 0.02);
 
-  // master up
   ramp(master.gain, MASTER_LEVEL, 0.02);
 
-  // apply current XY instantly
   applyVoicesFromActive();
-  setMixForTouchCount(Math.min(2, active.size));
+  setMixForTouchCount(Math.min(2, active.size) || 1);
 }
 
 function stopIfNeeded(){
@@ -660,10 +692,7 @@ function stopIfNeeded(){
 
   if (!ctx) return;
 
-  // master down first
   ramp(master.gain, 0.0, 0.05);
-
-  // gates down
   if (voice1) ramp(voice1.lfoDepth.gain, 0.0, 0.03);
   if (voice2) ramp(voice2.lfoDepth.gain, 0.0, 0.03);
 
@@ -671,6 +700,40 @@ function stopIfNeeded(){
     if (!holding) stopNoise();
   }, 140);
 }
+
+/* ===== LOOP button behavior =====
+   - Only allowed to turn ON while holding (touching / sounding)
+   - Turn OFF anytime; if no touches, stop
+*/
+function setLatch(on){
+  latched = on;
+  loopBtn.classList.toggle("on", latched);
+
+  if (latched){
+    // memorize how many voices were active at latch time (1 or 2)
+    latchedTouchCount = Math.max(1, Math.min(2, active.size));
+    // keep mix for latched voices
+    setMixForTouchCount(latchedTouchCount);
+    // keep last XY stable
+    applyVoicesFromLatched();
+  } else {
+    // if nobody is touching, stop immediately
+    if (active.size === 0) stopIfNeeded();
+  }
+}
+
+loopBtn.addEventListener("pointerdown", (e) => {
+  e.preventDefault();
+  e.stopPropagation();
+
+  // ON: only while holding (i.e. currently sounding)
+  if (!latched){
+    if (!holding) return;
+    setLatch(true);
+  } else {
+    setLatch(false);
+  }
+}, {passive:false});
 
 /* ===== mobile recovery ===== */
 window.addEventListener("pointerdown", () => { hardResumeAudio(); }, {capture:true, passive:true});
@@ -681,15 +744,16 @@ window.addEventListener("pageshow", () => { hardResumeAudio(); });
 window.addEventListener("blur", () => {
   active.clear();
   syncDots();
+  setLatch(false);
   stopIfNeeded();
 });
 
-/* ===== pointer events (multi-touch) ===== */
+/* ===== pointer events ===== */
 pad.addEventListener("pointerdown", (e) => {
+  // if loop button gets the event, it stopped propagation already
   e.preventDefault();
   updateRect();
 
-  // keep only 2 pointers
   if (!active.has(e.pointerId) && active.size >= 2) return;
 
   const {x01,y01} = getXY01(e.clientX, e.clientY);
@@ -698,6 +762,8 @@ pad.addEventListener("pointerdown", (e) => {
   try { pad.setPointerCapture(e.pointerId); } catch(_){}
 
   syncDots();
+
+  // touching while latched: keep latched ON, but update lastXY and voices
   startIfNeeded();
   applyVoicesFromActive();
   setMixForTouchCount(Math.min(2, active.size));
@@ -712,6 +778,7 @@ pad.addEventListener("pointermove", (e) => {
   o.x01 = x01; o.y01 = y01; o.lastTs = performance.now();
 
   syncDots();
+
   if (holding){
     applyVoicesFromActive();
   }
@@ -722,22 +789,29 @@ function endPointer(e){
   e.preventDefault();
 
   active.delete(e.pointerId);
-
-  // if 2->1, keep playing with remaining finger (don’t hard stop)
   syncDots();
-  setMixForTouchCount(Math.min(2, active.size));
+
+  // if no touches left:
   if (active.size === 0){
+    if (latched){
+      // keep sounding (no dots)
+      applyVoicesFromLatched();
+      setMixForTouchCount(latchedTouchCount);
+      return;
+    }
     stopIfNeeded();
-  } else {
-    // refresh notes a little? keep stable: do nothing
-    applyVoicesFromActive();
+    return;
   }
+
+  // still touching with another finger
+  applyVoicesFromActive();
+  setMixForTouchCount(Math.min(2, active.size));
 }
 
 pad.addEventListener("pointerup", endPointer, {passive:false});
 pad.addEventListener("pointercancel", endPointer, {passive:false});
 
-/* init dots position */
+/* init */
 syncDots();
 </script>
 </body>
