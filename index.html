@@ -47,8 +47,7 @@
       width:100%;
       height:100%;
       border-radius:12px;
-      background:
-        linear-gradient(180deg, rgba(185,188,196,.92), rgba(174,178,188,.90));
+      background: linear-gradient(180deg, rgba(185,188,196,.92), rgba(174,178,188,.90));
       box-shadow:
         inset 0 1px 0 rgba(255,255,255,.40),
         inset 0 -1px 0 rgba(0,0,0,.18),
@@ -56,11 +55,13 @@
       border:2px solid var(--lineStrong);
       position:relative;
       overflow:hidden;
-      touch-action:none;
+
+      touch-action:none;               /* pointer events multi-touch */
       -webkit-tap-highlight-color: transparent;
+      user-select:none;
+      -webkit-user-select:none;
     }
 
-    /* grid only */
     .pad::before{
       content:"";
       position:absolute;
@@ -99,8 +100,6 @@
       text-transform: lowercase;
       font-size:15px;
       color: var(--txt);
-      user-select:none;
-      -webkit-user-select:none;
       pointer-events:none;
       mix-blend-mode: screen;
     }
@@ -114,67 +113,51 @@
       border:1px solid rgba(255,255,255,.38);
       transform: translate(-50%,-50%);
       pointer-events:none;
-      opacity:.95;
+      opacity:.92;
     }
-    .dot.off{
-      opacity:.30;
-      background: rgba(0,0,255,.35);
-      box-shadow:none;
-    }
+    .dot.off{ opacity:.28; background: rgba(0,0,255,.35); box-shadow:none; }
 
-    .hit{
-      position:absolute;
-      inset:0;
-      display:block;
-      background: transparent;
-      touch-action:none;
-      -webkit-tap-highlight-color: transparent;
+    .dot.dot2{
+      width:10px; height:10px;
+      opacity:.75;
+      background: rgba(0,0,255,.70);
+      box-shadow: 0 0 12px rgba(0,0,255,.20);
     }
   </style>
 </head>
 
 <body>
-  <div class="padWrap" id="wrap">
+  <div class="padWrap">
     <div class="pad" id="pad" aria-label="xy pad">
       <div class="slab" aria-hidden="true"></div>
       <div class="ghost" aria-hidden="true">yoru no tsushin</div>
-      <div class="dot off" id="dot"></div>
-      <div class="hit" id="hit"></div>
+
+      <div class="dot off" id="dot1"></div>
+      <div class="dot dot2 off" id="dot2"></div>
     </div>
   </div>
 
 <script>
 /* =========================================================
-   YORU NO TSUSHIN — WebAudio XY pad (mobile-hardened)
-   - Hold to transmit
-   - Y: pitch (up=high)  [WIDE]
-   - X: interval speed (right=fast) [WIDE]
-   - Normal: sine busy-tone on random note (F A C E G)
-   - Bug A: 1/15 noise (3 types) while held @20%
-   - Bug B: 1/12 SF UI beep one-shot (5 types) @20%
-   - iOS/Chrome fix: hardResumeAudio + bfcache recovery
+   yoru no tsushin — PRO / 2-touch / mobile-hardened
+   - Up/Down: pitch (wide)
+   - Left/Right: interval speed (wide, right fast)
+   - Each finger has its own busy-tone gate (independent LFO)
+   - 1/15: noise glitch while held (3 types) @20%
+   - 1/12: SF UI beep one-shot (5 types) @20%
+   - iOS/Chrome: hard resume + bfcache recovery + context recreate fallback
+   - Light limiter (compressor) to avoid clipping on 2 voices
 ========================================================= */
 
-let ctx, master, gate;
-let osc, oscGain;
-let lfo, shaper, lfoDepth;
-
-let noiseGain;
-let noiseSrc = null;
-let iosUnlocked = false;
-
-let glitchBus;
-
 const pad = document.getElementById("pad");
-const hit = document.getElementById("hit");
-const dot = document.getElementById("dot");
+const dot1 = document.getElementById("dot1");
+const dot2 = document.getElementById("dot2");
 
-/* ===== WIDE RANGES ===== */
-const MIN_MS = 60;    // right fast
-const MAX_MS = 1800;  // left slow
-
-const PITCH_MIN_MULT = 0.35; // bottom low
-const PITCH_MAX_MULT = 3.00; // top high
+/* ranges */
+const MIN_MS = 60;     // right fast
+const MAX_MS = 1800;   // left slow
+const PITCH_MIN_MULT = 0.35;
+const PITCH_MAX_MULT = 3.00;
 
 /* levels */
 const MASTER_LEVEL = 0.096;
@@ -193,30 +176,208 @@ const MID = [
   { hz: 783.991 }, // G5
 ];
 
-let current = MID[0];
-let x01 = 0.5;
-let y01 = 0.5;
-let holding = false;
-
 function clamp01(v){ return Math.max(0, Math.min(1, v)); }
 function pickRandomNote(){ return MID[(Math.random() * MID.length) | 0]; }
 
-/* Y -> pitch multiplier (exponential curve) */
+/* curves */
 function yToMult(y){
-  const t = 1 - y;                // top=1
+  const t = 1 - y;
   const shaped = Math.pow(t, 1.15);
   return PITCH_MIN_MULT * Math.pow(PITCH_MAX_MULT / PITCH_MIN_MULT, shaped);
 }
-
-/* X -> interval ms (curved; left becomes very slow) */
 function xToMs(x){
   const shaped = Math.pow(1 - x, 1.25);
   return MIN_MS + (MAX_MS - MIN_MS) * shaped;
 }
-
 function msToLfoHz(ms){ return 500 / ms; }
 
-/* ---------- core audio graph ---------- */
+/* ===== audio state ===== */
+let ctx = null;
+let master = null, comp = null;
+let iosUnlocked = false;
+
+let voice1 = null, voice2 = null;
+let noiseGain = null, noiseSrc = null;
+let glitchBus = null;
+
+let whiteBuf=null, pinkBuf=null, digiBuf=null;
+
+let holding = false;
+let bugNoise = false;
+
+/* ===== geometry cache ===== */
+let padRect = null;
+function updateRect(){ padRect = pad.getBoundingClientRect(); }
+updateRect();
+window.addEventListener("resize", updateRect, {passive:true});
+window.addEventListener("scroll", updateRect, {passive:true});
+
+/* ===== pointer tracking (up to 2 pointers) ===== */
+const active = new Map(); // pointerId -> {x01,y01,lastTs}
+function getXY01(clientX, clientY){
+  if (!padRect) updateRect();
+  const x01 = clamp01((clientX - padRect.left) / padRect.width);
+  const y01 = clamp01((clientY - padRect.top)  / padRect.height);
+  return {x01,y01};
+}
+function syncDots(){
+  // assign deterministic order: insertion order of Map keys
+  const ids = Array.from(active.keys()).slice(0,2);
+  const a = ids[0] ? active.get(ids[0]) : null;
+  const b = ids[1] ? active.get(ids[1]) : null;
+
+  if (a){
+    dot1.classList.remove("off");
+    dot1.style.left = (a.x01 * padRect.width) + "px";
+    dot1.style.top  = (a.y01 * padRect.height) + "px";
+  } else {
+    dot1.classList.add("off");
+  }
+
+  if (b){
+    dot2.classList.remove("off");
+    dot2.style.left = (b.x01 * padRect.width) + "px";
+    dot2.style.top  = (b.y01 * padRect.height) + "px";
+  } else {
+    dot2.classList.add("off");
+  }
+}
+
+/* ===== helpers ===== */
+function ramp(param, value, t=0.02){
+  if (!ctx) return;
+  const now = ctx.currentTime;
+  param.cancelScheduledValues(now);
+  param.setValueAtTime(param.value, now);
+  param.linearRampToValueAtTime(value, now + t);
+}
+
+function ensureNoiseBuffers(){
+  if (whiteBuf) return;
+  const sr = ctx.sampleRate;
+
+  const makeWhite = (sec=2) => {
+    const len = Math.floor(sr * sec);
+    const buf = ctx.createBuffer(1, len, sr);
+    const d = buf.getChannelData(0);
+    for (let i=0;i<len;i++) d[i] = (Math.random()*2 - 1);
+    return buf;
+  };
+  const makePinkish = (sec=2) => {
+    const len = Math.floor(sr * sec);
+    const buf = ctx.createBuffer(1, len, sr);
+    const d = buf.getChannelData(0);
+    let y=0, a=0.985;
+    for (let i=0;i<len;i++){
+      const x = (Math.random()*2 - 1);
+      y = a*y + (1-a)*x;
+      d[i] = y * 1.6;
+    }
+    return buf;
+  };
+  const makeDigital = (sec=2) => {
+    const len = Math.floor(sr * sec);
+    const buf = ctx.createBuffer(1, len, sr);
+    const d = buf.getChannelData(0);
+    const holdMin=6, holdMax=80;
+    let v=0, n=0;
+    for (let i=0;i<len;i++){
+      if (n<=0){
+        v = (Math.random()*2 - 1);
+        n = (holdMin + ((Math.random()*(holdMax-holdMin))|0));
+      }
+      d[i]=v; n--;
+    }
+    return buf;
+  };
+
+  whiteBuf = makeWhite(2);
+  pinkBuf  = makePinkish(2);
+  digiBuf  = makeDigital(2);
+}
+
+function startNoise(type){
+  ensureNoiseBuffers();
+  stopNoise();
+  noiseSrc = ctx.createBufferSource();
+  noiseSrc.loop = true;
+  noiseSrc.buffer = (type===0) ? whiteBuf : (type===1) ? pinkBuf : digiBuf;
+  noiseSrc.connect(noiseGain);
+  noiseSrc.start();
+}
+
+function stopNoise(){
+  if (!noiseSrc) return;
+  try{ noiseSrc.stop(); }catch(e){}
+  try{ noiseSrc.disconnect(); }catch(e){}
+  noiseSrc = null;
+}
+
+/* ===== voice builder: osc + independent gate (square LFO -> shaper -> gain) ===== */
+function makeGateShaper(){
+  const sh = ctx.createWaveShaper();
+  const N = 1024;
+  const curve = new Float32Array(N);
+  for (let i=0;i<N;i++){
+    const x = (i/(N-1))*2-1;
+    curve[i] = x >= 0 ? 1 : 0;
+  }
+  sh.curve = curve;
+  sh.oversample = "4x";
+  return sh;
+}
+
+function makeVoice(){
+  const v = {};
+  v.note = pickRandomNote();
+
+  v.osc = ctx.createOscillator();
+  v.osc.type = "sine";
+  v.osc.frequency.value = v.note.hz;
+
+  v.toneGain = ctx.createGain();
+  v.toneGain.gain.value = 0.0; // will ramp to 1 when active (or 0 when noise mode)
+
+  v.gateGain = ctx.createGain();
+  v.gateGain.gain.value = 0.0; // gate control
+
+  v.out = ctx.createGain();
+  v.out.gain.value = 0.0; // per-voice overall (used to balance 1 vs 2 touches)
+
+  v.lfo = ctx.createOscillator();
+  v.lfo.type = "square";
+  v.lfo.frequency.value = msToLfoHz(400);
+
+  v.shaper = makeGateShaper();
+  v.lfoDepth = ctx.createGain();
+  v.lfoDepth.gain.value = 0.0;
+
+  v.osc.connect(v.toneGain);
+  v.toneGain.connect(v.gateGain);
+  v.gateGain.connect(v.out);
+  v.out.connect(master);
+
+  v.lfo.connect(v.shaper);
+  v.shaper.connect(v.lfoDepth);
+  v.lfoDepth.connect(v.gateGain.gain);
+
+  v.osc.start();
+  v.lfo.start();
+
+  return v;
+}
+
+function setVoiceFromXY(v, x01, y01){
+  if (!ctx) return;
+  const mult = yToMult(y01);
+  const ms = xToMs(x01);
+
+  const det = 1 + (Math.random()*0.002 - 0.001);
+  v.osc.frequency.value = (v.note.hz * mult) * det;
+  v.lfo.frequency.value = msToLfoHz(ms);
+}
+
+/* ===== audio init / hard resume ===== */
 function ensureAudio(){
   if (ctx) return;
 
@@ -224,57 +385,35 @@ function ensureAudio(){
 
   master = ctx.createGain();
   master.gain.value = 0.0;
-  master.connect(ctx.destination);
 
-  gate = ctx.createGain();
-  gate.gain.value = 0.0;
+  // light limiter / anti-clip
+  comp = ctx.createDynamicsCompressor();
+  comp.threshold.value = -18;
+  comp.knee.value = 10;
+  comp.ratio.value = 6;
+  comp.attack.value = 0.004;
+  comp.release.value = 0.08;
 
-  oscGain = ctx.createGain();
-  oscGain.gain.value = 1.0;
+  master.connect(comp);
+  comp.connect(ctx.destination);
 
+  // noise path shares the same master, but it will be gated by voice gates
   noiseGain = ctx.createGain();
   noiseGain.gain.value = 0.0;
+  noiseGain.connect(master);
 
   glitchBus = ctx.createGain();
   glitchBus.gain.value = BUG_LEVEL;
   glitchBus.connect(master);
 
-  osc = ctx.createOscillator();
-  osc.type = "sine";
-  osc.frequency.value = current.hz;
-  osc.connect(oscGain);
+  voice1 = makeVoice();
+  voice2 = makeVoice();
 
-  oscGain.connect(gate);
-  noiseGain.connect(gate);
-  gate.connect(master);
-
-  osc.start();
-
-  lfo = ctx.createOscillator();
-  lfo.type = "square";
-  lfo.frequency.value = msToLfoHz(xToMs(x01));
-
-  shaper = ctx.createWaveShaper();
-  const N = 1024;
-  const curve = new Float32Array(N);
-  for (let i=0;i<N;i++){
-    const x = (i/(N-1))*2-1;
-    curve[i] = x >= 0 ? 1 : 0;
-  }
-  shaper.curve = curve;
-  shaper.oversample = "4x";
-
-  lfoDepth = ctx.createGain();
-  lfoDepth.gain.value = 0.0;
-
-  lfo.connect(shaper);
-  shaper.connect(lfoDepth);
-  lfoDepth.connect(gate.gain);
-
-  lfo.start();
+  // start muted until gesture
+  voice1.out.gain.value = 0.0;
+  voice2.out.gain.value = 0.0;
 }
 
-/* tiny unlock: helps iOS route audio properly */
 function unlockIOSOnce(){
   if (!ctx || iosUnlocked) return;
   try{
@@ -288,122 +427,37 @@ function unlockIOSOnce(){
   }catch(e){}
 }
 
-/* hard resume: handles suspended ctx + bfcache weirdness */
 async function hardResumeAudio(){
   if (!ctx) ensureAudio();
   try { await ctx.resume(); } catch(e) {}
 
-  // last resort: recreate context if it refuses to run
   if (ctx && ctx.state !== "running"){
     try { await ctx.close(); } catch(e) {}
-    ctx = null; master = gate = osc = oscGain = lfo = shaper = lfoDepth = null;
+    ctx = null; master = null; comp = null;
+    voice1 = null; voice2 = null;
     noiseGain = null; glitchBus = null;
     noiseSrc = null;
     iosUnlocked = false;
+    whiteBuf = pinkBuf = digiBuf = null;
 
     ensureAudio();
     unlockIOSOnce();
     try { await ctx.resume(); } catch(e) {}
   }
 
-  // play nearly silent tick to fully unlock output route
+  // tiny audible-ish tick (super low) to force-route output (iOS/Chrome)
   try{
     const o = ctx.createOscillator();
     const g = ctx.createGain();
-    g.gain.value = 0.0001;
+    g.gain.value = 0.002; // slightly above "inaudible" to avoid being optimized away
+    o.frequency.value = 440;
     o.connect(g); g.connect(ctx.destination);
     o.start();
-    o.stop(ctx.currentTime + 0.01);
+    o.stop(ctx.currentTime + 0.02);
   }catch(e){}
 }
 
-function ramp(param, value, t=0.02){
-  if (!ctx) return;
-  const now = ctx.currentTime;
-  param.cancelScheduledValues(now);
-  param.setValueAtTime(param.value, now);
-  param.linearRampToValueAtTime(value, now + t);
-}
-
-function applyXY(){
-  const r = pad.getBoundingClientRect();
-  dot.style.left = (x01 * r.width) + "px";
-  dot.style.top  = (y01 * r.height) + "px";
-
-  if (!ctx || !osc || !lfo) return;
-
-  const mult = yToMult(y01);
-  const ms = xToMs(x01);
-
-  const det = 1 + (Math.random()*0.002 - 0.001);
-  osc.frequency.value = (current.hz * mult) * det;
-  lfo.frequency.value = msToLfoHz(ms);
-}
-
-/* ------------------ noise buffers (3 types) ------------------ */
-function makeWhiteBuffer(seconds=2){
-  const len = Math.floor(ctx.sampleRate * seconds);
-  const buf = ctx.createBuffer(1, len, ctx.sampleRate);
-  const d = buf.getChannelData(0);
-  for (let i=0;i<len;i++) d[i] = (Math.random()*2 - 1);
-  return buf;
-}
-function makePinkishBuffer(seconds=2){
-  const len = Math.floor(ctx.sampleRate * seconds);
-  const buf = ctx.createBuffer(1, len, ctx.sampleRate);
-  const d = buf.getChannelData(0);
-  let y = 0;
-  const a = 0.985;
-  for (let i=0;i<len;i++){
-    const x = (Math.random()*2 - 1);
-    y = a*y + (1-a)*x;
-    d[i] = y * 1.6;
-  }
-  return buf;
-}
-function makeDigitalBuffer(seconds=2){
-  const len = Math.floor(ctx.sampleRate * seconds);
-  const buf = ctx.createBuffer(1, len, ctx.sampleRate);
-  const d = buf.getChannelData(0);
-  const holdMin = 6;
-  const holdMax = 80;
-  let v = 0, n = 0;
-  for (let i=0;i<len;i++){
-    if (n <= 0){
-      v = (Math.random()*2 - 1);
-      n = (holdMin + ((Math.random()*(holdMax-holdMin))|0));
-    }
-    d[i] = v;
-    n--;
-  }
-  return buf;
-}
-
-let whiteBuf, pinkBuf, digiBuf;
-function ensureNoiseBuffers(){
-  if (whiteBuf) return;
-  whiteBuf = makeWhiteBuffer(2);
-  pinkBuf  = makePinkishBuffer(2);
-  digiBuf  = makeDigitalBuffer(2);
-}
-
-function startNoise(type){
-  ensureNoiseBuffers();
-  stopNoise();
-  noiseSrc = ctx.createBufferSource();
-  noiseSrc.loop = true;
-  noiseSrc.buffer = (type===0) ? whiteBuf : (type===1) ? pinkBuf : digiBuf;
-  noiseSrc.connect(noiseGain);
-  noiseSrc.start();
-}
-function stopNoise(){
-  if (!noiseSrc) return;
-  try{ noiseSrc.stop(); }catch(e){}
-  try{ noiseSrc.disconnect(); }catch(e){}
-  noiseSrc = null;
-}
-
-/* ------------------ SF UI beeps (beeper2-ish vibe) ------------------ */
+/* ===== SF UI beep one-shot (5 types) ===== */
 function playGlitchOneShot(type){
   if (!ctx) return;
   const now = ctx.currentTime;
@@ -414,12 +468,12 @@ function playGlitchOneShot(type){
 
   function cleanup(at){
     g.gain.linearRampToValueAtTime(0.0, at);
-    setTimeout(() => { try { g.disconnect(); } catch(e){} }, Math.max(0, (at - now) * 1000 + 80));
+    setTimeout(() => { try { g.disconnect(); } catch(e){} }, Math.max(0, (at-now)*1000 + 80));
   }
 
   // click transient
   const click = ctx.createBufferSource();
-  const clickBuf = ctx.createBuffer(1, Math.floor(ctx.sampleRate * 0.02), ctx.sampleRate);
+  const clickBuf = ctx.createBuffer(1, Math.floor(ctx.sampleRate*0.02), ctx.sampleRate);
   const cd = clickBuf.getChannelData(0);
   for (let i=0;i<cd.length;i++){
     const t = i / cd.length;
@@ -437,9 +491,7 @@ function playGlitchOneShot(type){
   clickGain.gain.linearRampToValueAtTime(0.45, now + 0.001);
   clickGain.gain.exponentialRampToValueAtTime(0.0008, now + 0.018);
 
-  click.connect(bp);
-  bp.connect(clickGain);
-  clickGain.connect(g);
+  click.connect(bp); bp.connect(clickGain); clickGain.connect(g);
 
   // tone stack + subtle FM
   const o1 = ctx.createOscillator();
@@ -451,7 +503,6 @@ function playGlitchOneShot(type){
   fm.type = "sine";
   const fmGain = ctx.createGain();
   fmGain.gain.setValueAtTime(0.0, now);
-
   fm.connect(fmGain);
   fmGain.connect(o1.frequency);
 
@@ -467,8 +518,6 @@ function playGlitchOneShot(type){
   g.gain.linearRampToValueAtTime(1.0, now + A);
   g.gain.exponentialRampToValueAtTime(0.0008, now + A + D);
 
-  const end = now + 0.14;
-
   if (type === 0){
     o1.frequency.setValueAtTime(1800, now);
     o1.frequency.exponentialRampToValueAtTime(8200, now + 0.060);
@@ -477,7 +526,6 @@ function playGlitchOneShot(type){
     fm.frequency.setValueAtTime(70, now);
     fmGain.gain.setValueAtTime(55, now);
     cleanup(now + 0.080);
-
   } else if (type === 1){
     o1.frequency.setValueAtTime(9500, now);
     o1.frequency.exponentialRampToValueAtTime(2600, now + 0.055);
@@ -486,7 +534,6 @@ function playGlitchOneShot(type){
     fm.frequency.setValueAtTime(55, now);
     fmGain.gain.setValueAtTime(40, now);
     cleanup(now + 0.075);
-
   } else if (type === 2){
     o1.frequency.setValueAtTime(5200, now);
     o2.frequency.setValueAtTime(2600, now);
@@ -502,7 +549,6 @@ function playGlitchOneShot(type){
     fm.frequency.setValueAtTime(90, now);
     fmGain.gain.setValueAtTime(20, now);
     cleanup(now + 0.090);
-
   } else if (type === 3){
     o1.frequency.setValueAtTime(3400, now);
     o1.frequency.linearRampToValueAtTime(3800, now + 0.018);
@@ -515,7 +561,6 @@ function playGlitchOneShot(type){
     fm.frequency.setValueAtTime(120, now);
     fmGain.gain.setValueAtTime(35, now);
     cleanup(now + 0.070);
-
   } else {
     bp.frequency.setValueAtTime(2800, now);
     bp.frequency.linearRampToValueAtTime(1400, now + 0.020);
@@ -536,135 +581,164 @@ function playGlitchOneShot(type){
   o2.start(now);
 
   setTimeout(() => {
-    try { click.stop(); } catch(e){}
-    try { fm.stop(); } catch(e){}
-    try { o1.stop(); } catch(e){}
-    try { o2.stop(); } catch(e){}
-    try { click.disconnect(); } catch(e){}
-    try { bp.disconnect(); } catch(e){}
-    try { clickGain.disconnect(); } catch(e){}
-    try { fmGain.disconnect(); } catch(e){}
-    try { toneGain.disconnect(); } catch(e){}
-  }, Math.max(0, (end - now) * 1000 + 90));
+    try{ click.stop(); fm.stop(); o1.stop(); o2.stop(); }catch(e){}
+    try{ click.disconnect(); bp.disconnect(); clickGain.disconnect(); }catch(e){}
+    try{ fmGain.disconnect(); toneGain.disconnect(); }catch(e){}
+  }, 220);
 }
 
-/* ===== mobile-hardened: resume on gestures + recover on restore ===== */
-window.addEventListener("pointerdown", () => { hardResumeAudio(); }, {capture:true, passive:true});
-window.addEventListener("touchstart",  () => { hardResumeAudio(); }, {capture:true, passive:true});
-document.addEventListener("visibilitychange", () => {
-  if (!document.hidden) hardResumeAudio();
-});
-window.addEventListener("pageshow", () => { hardResumeAudio(); });
+/* ===== start/stop logic ===== */
+function applyVoicesFromActive(){
+  const ids = Array.from(active.keys()).slice(0,2);
+  const a = ids[0] ? active.get(ids[0]) : null;
+  const b = ids[1] ? active.get(ids[1]) : null;
 
-/* ------------------ start/stop + pointer ------------------ */
-async function startAudioGesture(){
+  if (a && voice1){
+    setVoiceFromXY(voice1, a.x01, a.y01);
+  }
+  if (b && voice2){
+    setVoiceFromXY(voice2, b.x01, b.y01);
+  }
+}
+
+function setMixForTouchCount(n){
+  if (!ctx || !voice1 || !voice2) return;
+  // 2本鳴る時は各ボイス少し下げて破綻防止
+  const v = (n >= 2) ? 0.60 : 0.85;
+  ramp(voice1.out.gain, (n>=1) ? v : 0.0, 0.02);
+  ramp(voice2.out.gain, (n>=2) ? v : 0.0, 0.02);
+}
+
+async function startIfNeeded(){
   ensureAudio();
   unlockIOSOnce();
   await hardResumeAudio();
   if (!ctx || ctx.state !== "running") return;
 
+  if (holding) return;
   holding = true;
-  dot.classList.remove("off");
 
-  current = pickRandomNote();
+  // choose notes each time holding starts
+  voice1.note = pickRandomNote();
+  voice2.note = pickRandomNote();
 
+  // random one-shot SF beep
   if (Math.random() < GLITCH_PROB){
     playGlitchOneShot((Math.random()*5)|0);
   }
 
-  const bugMode = (Math.random() < NOISE_PROB);
-  const bugType = (Math.random()*3)|0;
-
-  if (bugMode){
+  // noise glitch mode (global for this hold)
+  bugNoise = (Math.random() < NOISE_PROB);
+  if (bugNoise){
+    const bugType = (Math.random()*3)|0;
     startNoise(bugType);
-    ramp(oscGain.gain, 0.0, 0.02);
     ramp(noiseGain.gain, BUG_LEVEL, 0.02);
+    ramp(voice1.toneGain.gain, 0.0, 0.02);
+    ramp(voice2.toneGain.gain, 0.0, 0.02);
   } else {
     stopNoise();
     ramp(noiseGain.gain, 0.0, 0.02);
-    ramp(oscGain.gain, 1.0, 0.02);
+    ramp(voice1.toneGain.gain, 1.0, 0.02);
+    ramp(voice2.toneGain.gain, 1.0, 0.02);
   }
 
-  applyXY();
+  // enable gates
+  ramp(voice1.lfoDepth.gain, 1.0, 0.02);
+  ramp(voice2.lfoDepth.gain, 1.0, 0.02);
 
-  ramp(lfoDepth.gain, 1.0, 0.02);
+  // master up
   ramp(master.gain, MASTER_LEVEL, 0.02);
+
+  // apply current XY instantly
+  applyVoicesFromActive();
+  setMixForTouchCount(Math.min(2, active.size));
 }
 
-function stop(){
+function stopIfNeeded(){
+  if (!holding) return;
   holding = false;
-  dot.classList.add("off");
+
   if (!ctx) return;
 
-  ramp(lfoDepth.gain, 0.0, 0.03);
+  // master down first
   ramp(master.gain, 0.0, 0.05);
+
+  // gates down
+  if (voice1) ramp(voice1.lfoDepth.gain, 0.0, 0.03);
+  if (voice2) ramp(voice2.lfoDepth.gain, 0.0, 0.03);
 
   setTimeout(() => {
     if (!holding) stopNoise();
   }, 140);
 }
 
-function updateFromClientXY(clientX, clientY){
-  const r = pad.getBoundingClientRect();
-  x01 = clamp01((clientX - r.left) / r.width);
-  y01 = clamp01((clientY - r.top) / r.height);
-  applyXY();
+/* ===== mobile recovery ===== */
+window.addEventListener("pointerdown", () => { hardResumeAudio(); }, {capture:true, passive:true});
+window.addEventListener("touchstart",  () => { hardResumeAudio(); }, {capture:true, passive:true});
+document.addEventListener("visibilitychange", () => { if (!document.hidden) hardResumeAudio(); });
+window.addEventListener("pageshow", () => { hardResumeAudio(); });
+
+window.addEventListener("blur", () => {
+  active.clear();
+  syncDots();
+  stopIfNeeded();
+});
+
+/* ===== pointer events (multi-touch) ===== */
+pad.addEventListener("pointerdown", (e) => {
+  e.preventDefault();
+  updateRect();
+
+  // keep only 2 pointers
+  if (!active.has(e.pointerId) && active.size >= 2) return;
+
+  const {x01,y01} = getXY01(e.clientX, e.clientY);
+  active.set(e.pointerId, {x01,y01, lastTs: performance.now()});
+
+  try { pad.setPointerCapture(e.pointerId); } catch(_){}
+
+  syncDots();
+  startIfNeeded();
+  applyVoicesFromActive();
+  setMixForTouchCount(Math.min(2, active.size));
+}, {passive:false});
+
+pad.addEventListener("pointermove", (e) => {
+  if (!active.has(e.pointerId)) return;
+  e.preventDefault();
+
+  const {x01,y01} = getXY01(e.clientX, e.clientY);
+  const o = active.get(e.pointerId);
+  o.x01 = x01; o.y01 = y01; o.lastTs = performance.now();
+
+  syncDots();
+  if (holding){
+    applyVoicesFromActive();
+  }
+}, {passive:false});
+
+function endPointer(e){
+  if (!active.has(e.pointerId)) return;
+  e.preventDefault();
+
+  active.delete(e.pointerId);
+
+  // if 2->1, keep playing with remaining finger (don’t hard stop)
+  syncDots();
+  setMixForTouchCount(Math.min(2, active.size));
+  if (active.size === 0){
+    stopIfNeeded();
+  } else {
+    // refresh notes a little? keep stable: do nothing
+    applyVoicesFromActive();
+  }
 }
 
-let pid = null;
+pad.addEventListener("pointerup", endPointer, {passive:false});
+pad.addEventListener("pointercancel", endPointer, {passive:false});
 
-hit.addEventListener("pointerdown", (e) => {
-  e.preventDefault();
-  pid = e.pointerId;
-  try { hit.setPointerCapture(pid); } catch(_){}
-  updateFromClientXY(e.clientX, e.clientY);
-  startAudioGesture();
-}, {passive:false});
-
-hit.addEventListener("pointermove", (e) => {
-  if (!holding) return;
-  if (pid !== null && e.pointerId !== pid) return;
-  e.preventDefault();
-  updateFromClientXY(e.clientX, e.clientY);
-}, {passive:false});
-
-hit.addEventListener("pointerup", (e) => {
-  if (pid !== null && e.pointerId !== pid) return;
-  e.preventDefault();
-  pid = null;
-  stop();
-}, {passive:false});
-
-hit.addEventListener("pointercancel", (e) => {
-  e.preventDefault();
-  pid = null;
-  stop();
-}, {passive:false});
-
-/* iOS Safari/Chrome sometimes prefers touch events too */
-hit.addEventListener("touchstart", (e) => {
-  e.preventDefault();
-  const t = e.touches[0];
-  if (!t) return;
-  updateFromClientXY(t.clientX, t.clientY);
-  startAudioGesture();
-}, {passive:false});
-
-hit.addEventListener("touchmove", (e) => {
-  if (!holding) return;
-  e.preventDefault();
-  const t = e.touches[0];
-  if (!t) return;
-  updateFromClientXY(t.clientX, t.clientY);
-}, {passive:false});
-
-hit.addEventListener("touchend", (e) => { e.preventDefault(); stop(); }, {passive:false});
-hit.addEventListener("touchcancel", (e) => { e.preventDefault(); stop(); }, {passive:false});
-
-window.addEventListener("blur", stop);
-document.addEventListener("visibilitychange", () => { if (document.hidden) stop(); });
-
-applyXY();
+/* init dots position */
+syncDots();
 </script>
 </body>
 </html>
