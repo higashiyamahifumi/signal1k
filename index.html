@@ -17,13 +17,18 @@
       --paper:#b9bcc4;
       --paper2:#aeb2bc;
 
-      --line: rgba(0,0,255,.16);
+      --line: rgba(0,0,255,.14);
       --lineStrong: rgba(0,0,255,.92);
       --shadow: rgba(0,0,0,.62);
 
-      --txt: rgba(255,255,255,.22);
-      --btnTxt: rgba(255,255,255,.28);
-      --btnTxtOn: rgba(255,255,255,.55);
+      --txt: rgba(255,255,255,.30);
+      --txtStrong: rgba(255,255,255,.44);
+
+      --loopRing: rgba(0,0,255,.55);
+      --loopRingOn: rgba(0,0,255,.95);
+
+      --loopBg: rgba(255,255,255,.06);
+      --loopBgOn: rgba(0,0,255,.12);
     }
 
     *{box-sizing:border-box}
@@ -43,6 +48,7 @@
       height:min(78vh, 640px);
       display:grid;
       place-items:center;
+      position:relative;
     }
 
     .pad{
@@ -92,18 +98,20 @@
       filter: blur(.2px);
     }
 
+    /* ★タイトル：ちょい大きく＆ちょい目立つ */
     .ghost{
       position:absolute;
       top:12px;
       right:14px;
       font-family:"Oxanium", ui-monospace, monospace;
-      font-weight:200;
-      letter-spacing:3.5px;
+      font-weight:300;
+      letter-spacing:4.2px;
       text-transform: lowercase;
-      font-size:15px;
-      color: var(--txt);
+      font-size:18px;
+      color: var(--txtStrong);
       pointer-events:none;
       mix-blend-mode: screen;
+      text-shadow: 0 0 14px rgba(0,0,255,.12);
     }
 
     .dot{
@@ -123,44 +131,62 @@
       background: rgba(0,0,255,.70);
       box-shadow: 0 0 12px rgba(0,0,255,.20);
     }
-
-    /* ★触れてない時は完全に消す */
     .dot.hidden{ display:none; }
 
-    /* LOOP button */
+    /* ===== LOOP button : パッド枠の外（右下） ===== */
     .loopBtn{
       position:absolute;
-      left:14px;
-      bottom:14px;
-      padding:10px 12px;
-      border-radius:10px;
-      border:1px solid rgba(0,0,255,.55);
-      background: rgba(255,255,255,.06);
+      right: 0;
+      bottom: 0;
+      transform: translate(22px, 22px); /* 枠の外へ */
+      width:52px;
+      height:52px;
+      border-radius:999px;
+      border:1px solid var(--loopRing);
+      background: var(--loopBg);
       box-shadow:
         inset 0 1px 0 rgba(255,255,255,.20),
-        inset 0 -1px 0 rgba(0,0,0,.12);
-      font-family:"Oxanium", ui-monospace, monospace;
-      font-weight:300;
-      letter-spacing:2.4px;
-      text-transform: lowercase;
-      color: var(--btnTxt);
+        inset 0 -1px 0 rgba(0,0,0,.12),
+        0 10px 30px rgba(0,0,0,.28);
+      display:grid;
+      place-items:center;
       cursor:pointer;
       touch-action: manipulation;
       -webkit-tap-highlight-color: transparent;
       user-select:none;
       -webkit-user-select:none;
     }
-    .loopBtn:active{
-      transform: translateY(1px);
+    .loopBtn:active{ transform: translate(22px, 23px); }
+
+    .loopBtn svg{
+      width:26px;
+      height:26px;
+      opacity:.72;
+      fill: rgba(255,255,255,.55);
     }
+
     .loopBtn.on{
-      border-color: rgba(0,0,255,.95);
-      background: rgba(0,0,255,.12);
-      color: var(--btnTxtOn);
+      border-color: var(--loopRingOn);
+      background: var(--loopBgOn);
       box-shadow:
-        0 0 18px rgba(0,0,255,.18),
+        0 0 18px rgba(0,0,255,.20),
         inset 0 1px 0 rgba(255,255,255,.22),
-        inset 0 -1px 0 rgba(0,0,0,.12);
+        inset 0 -1px 0 rgba(0,0,0,.12),
+        0 10px 30px rgba(0,0,0,.28);
+    }
+    .loopBtn.on svg{
+      opacity:.92;
+      fill: rgba(255,255,255,.72);
+      filter: drop-shadow(0 0 8px rgba(0,0,255,.22));
+    }
+
+    /* 画面端にぶつからないように（小さいスマホ用） */
+    @media (max-width: 420px){
+      .loopBtn{
+        transform: translate(12px, 12px);
+        width:48px; height:48px;
+      }
+      .loopBtn:active{ transform: translate(12px, 13px); }
     }
   </style>
 </head>
@@ -171,11 +197,17 @@
       <div class="slab" aria-hidden="true"></div>
       <div class="ghost" aria-hidden="true">yoru no tsushin</div>
 
-      <button class="loopBtn" id="loopBtn" aria-label="loop">loop</button>
-
       <div class="dot hidden" id="dot1"></div>
       <div class="dot dot2 hidden" id="dot2"></div>
     </div>
+
+    <!-- ★枠の外のループボタン -->
+    <button class="loopBtn" id="loopBtn" aria-label="loop">
+      <!-- ループ矢印（シンプル） -->
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <path d="M17.6 6.4A7.5 7.5 0 0 0 4.9 9H2.8l3.1 3.1L9 9H6.9a5.6 5.6 0 0 1 9.5-1.9l-1.9 1.9H21V2.5l-3.4 3.4zM6.4 17.6A7.5 7.5 0 0 0 19.1 15H21.2l-3.1-3.1L15 15h2.1a5.6 5.6 0 0 1-9.5 1.9l1.9-1.9H3V21.5l3.4-3.4z"/>
+      </svg>
+    </button>
   </div>
 
 <script>
@@ -240,8 +272,8 @@ let holding = false;
 let bugNoise = false;
 
 /* LOOP latch */
-let latched = false;         // loop button state
-let latchedTouchCount = 1;   // remember 1 or 2 voices when latched
+let latched = false;
+let latchedTouchCount = 1;
 let lastXY1 = {x01:0.5, y01:0.5};
 let lastXY2 = {x01:0.5, y01:0.5};
 
@@ -345,7 +377,6 @@ function startNoise(type){
   noiseSrc.connect(noiseGain);
   noiseSrc.start();
 }
-
 function stopNoise(){
   if (!noiseSrc) return;
   try{ noiseSrc.stop(); }catch(e){}
@@ -631,7 +662,6 @@ function applyVoicesFromActive(){
     setVoiceFromXY(voice2, b.x01, b.y01);
   }
 }
-
 function applyVoicesFromLatched(){
   if (!voice1 || !voice2) return;
   setVoiceFromXY(voice1, lastXY1.x01, lastXY1.y01);
@@ -639,7 +669,6 @@ function applyVoicesFromLatched(){
     setVoiceFromXY(voice2, lastXY2.x01, lastXY2.y01);
   }
 }
-
 function setMixForTouchCount(n){
   if (!ctx || !voice1 || !voice2) return;
   const v = (n >= 2) ? 0.60 : 0.85;
@@ -696,28 +725,19 @@ function stopIfNeeded(){
   if (voice1) ramp(voice1.lfoDepth.gain, 0.0, 0.03);
   if (voice2) ramp(voice2.lfoDepth.gain, 0.0, 0.03);
 
-  setTimeout(() => {
-    if (!holding) stopNoise();
-  }, 140);
+  setTimeout(() => { if (!holding) stopNoise(); }, 140);
 }
 
-/* ===== LOOP button behavior =====
-   - Only allowed to turn ON while holding (touching / sounding)
-   - Turn OFF anytime; if no touches, stop
-*/
+/* ===== LOOP latch ===== */
 function setLatch(on){
   latched = on;
   loopBtn.classList.toggle("on", latched);
 
   if (latched){
-    // memorize how many voices were active at latch time (1 or 2)
     latchedTouchCount = Math.max(1, Math.min(2, active.size));
-    // keep mix for latched voices
     setMixForTouchCount(latchedTouchCount);
-    // keep last XY stable
     applyVoicesFromLatched();
   } else {
-    // if nobody is touching, stop immediately
     if (active.size === 0) stopIfNeeded();
   }
 }
@@ -726,9 +746,8 @@ loopBtn.addEventListener("pointerdown", (e) => {
   e.preventDefault();
   e.stopPropagation();
 
-  // ON: only while holding (i.e. currently sounding)
   if (!latched){
-    if (!holding) return;
+    if (!holding) return;      // 鳴ってる最中だけON
     setLatch(true);
   } else {
     setLatch(false);
@@ -750,7 +769,6 @@ window.addEventListener("blur", () => {
 
 /* ===== pointer events ===== */
 pad.addEventListener("pointerdown", (e) => {
-  // if loop button gets the event, it stopped propagation already
   e.preventDefault();
   updateRect();
 
@@ -762,8 +780,6 @@ pad.addEventListener("pointerdown", (e) => {
   try { pad.setPointerCapture(e.pointerId); } catch(_){}
 
   syncDots();
-
-  // touching while latched: keep latched ON, but update lastXY and voices
   startIfNeeded();
   applyVoicesFromActive();
   setMixForTouchCount(Math.min(2, active.size));
@@ -778,10 +794,7 @@ pad.addEventListener("pointermove", (e) => {
   o.x01 = x01; o.y01 = y01; o.lastTs = performance.now();
 
   syncDots();
-
-  if (holding){
-    applyVoicesFromActive();
-  }
+  if (holding) applyVoicesFromActive();
 }, {passive:false});
 
 function endPointer(e){
@@ -791,10 +804,8 @@ function endPointer(e){
   active.delete(e.pointerId);
   syncDots();
 
-  // if no touches left:
   if (active.size === 0){
     if (latched){
-      // keep sounding (no dots)
       applyVoicesFromLatched();
       setMixForTouchCount(latchedTouchCount);
       return;
@@ -803,7 +814,6 @@ function endPointer(e){
     return;
   }
 
-  // still touching with another finger
   applyVoicesFromActive();
   setMixForTouchCount(Math.min(2, active.size));
 }
