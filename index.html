@@ -60,6 +60,7 @@
       -webkit-tap-highlight-color: transparent;
     }
 
+    /* grid only */
     .pad::before{
       content:"";
       position:absolute;
@@ -144,10 +145,14 @@
 
 <script>
 /* =========================================================
-   YORU NO TSUSHIN — WebAudio XY pad
+   YORU NO TSUSHIN — WebAudio XY pad (mobile-hardened)
    - Hold to transmit
-   - Y: pitch (up=high)  [WIDER RANGE]
-   - X: interval speed (right=fast) [WIDER RANGE]
+   - Y: pitch (up=high)  [WIDE]
+   - X: interval speed (right=fast) [WIDE]
+   - Normal: sine busy-tone on random note (F A C E G)
+   - Bug A: 1/15 noise (3 types) while held @20%
+   - Bug B: 1/12 SF UI beep one-shot (5 types) @20%
+   - iOS/Chrome fix: hardResumeAudio + bfcache recovery
 ========================================================= */
 
 let ctx, master, gate;
@@ -164,13 +169,12 @@ const pad = document.getElementById("pad");
 const hit = document.getElementById("hit");
 const dot = document.getElementById("dot");
 
-/* ===== WIDER RANGES ===== */
-const MIN_MS = 60;    // was 160
-const MAX_MS = 1800;  // was 900
+/* ===== WIDE RANGES ===== */
+const MIN_MS = 60;    // right fast
+const MAX_MS = 1800;  // left slow
 
-// Pitch multiplier range (bottom ~0.35x, top ~3.0x)
-const PITCH_MIN_MULT = 0.35;
-const PITCH_MAX_MULT = 3.00;
+const PITCH_MIN_MULT = 0.35; // bottom low
+const PITCH_MAX_MULT = 3.00; // top high
 
 /* levels */
 const MASTER_LEVEL = 0.096;
@@ -197,28 +201,25 @@ let holding = false;
 function clamp01(v){ return Math.max(0, Math.min(1, v)); }
 function pickRandomNote(){ return MID[(Math.random() * MID.length) | 0]; }
 
-/* Map Y to pitch multiplier with more dramatic curve:
-   y=0(top)->max, y=1(bottom)->min
-   Use exponential curve for more musical feel */
+/* Y -> pitch multiplier (exponential curve) */
 function yToMult(y){
-  const t = 1 - y; // top=1
-  // exponential-ish curve: emphasize extremes slightly
+  const t = 1 - y;                // top=1
   const shaped = Math.pow(t, 1.15);
   return PITCH_MIN_MULT * Math.pow(PITCH_MAX_MULT / PITCH_MIN_MULT, shaped);
 }
 
-/* Map X to interval ms (right fast) with curve */
+/* X -> interval ms (curved; left becomes very slow) */
 function xToMs(x){
-  // x=1 => fast => MIN_MS
-  // x=0 => slow => MAX_MS
-  const shaped = Math.pow(1 - x, 1.25); // make left slower more dramatic
+  const shaped = Math.pow(1 - x, 1.25);
   return MIN_MS + (MAX_MS - MIN_MS) * shaped;
 }
 
 function msToLfoHz(ms){ return 500 / ms; }
 
+/* ---------- core audio graph ---------- */
 function ensureAudio(){
   if (ctx) return;
+
   ctx = new (window.AudioContext || window.webkitAudioContext)();
 
   master = ctx.createGain();
@@ -273,6 +274,7 @@ function ensureAudio(){
   lfo.start();
 }
 
+/* tiny unlock: helps iOS route audio properly */
 function unlockIOSOnce(){
   if (!ctx || iosUnlocked) return;
   try{
@@ -286,7 +288,37 @@ function unlockIOSOnce(){
   }catch(e){}
 }
 
+/* hard resume: handles suspended ctx + bfcache weirdness */
+async function hardResumeAudio(){
+  if (!ctx) ensureAudio();
+  try { await ctx.resume(); } catch(e) {}
+
+  // last resort: recreate context if it refuses to run
+  if (ctx && ctx.state !== "running"){
+    try { await ctx.close(); } catch(e) {}
+    ctx = null; master = gate = osc = oscGain = lfo = shaper = lfoDepth = null;
+    noiseGain = null; glitchBus = null;
+    noiseSrc = null;
+    iosUnlocked = false;
+
+    ensureAudio();
+    unlockIOSOnce();
+    try { await ctx.resume(); } catch(e) {}
+  }
+
+  // play nearly silent tick to fully unlock output route
+  try{
+    const o = ctx.createOscillator();
+    const g = ctx.createGain();
+    g.gain.value = 0.0001;
+    o.connect(g); g.connect(ctx.destination);
+    o.start();
+    o.stop(ctx.currentTime + 0.01);
+  }catch(e){}
+}
+
 function ramp(param, value, t=0.02){
+  if (!ctx) return;
   const now = ctx.currentTime;
   param.cancelScheduledValues(now);
   param.setValueAtTime(param.value, now);
@@ -385,6 +417,7 @@ function playGlitchOneShot(type){
     setTimeout(() => { try { g.disconnect(); } catch(e){} }, Math.max(0, (at - now) * 1000 + 80));
   }
 
+  // click transient
   const click = ctx.createBufferSource();
   const clickBuf = ctx.createBuffer(1, Math.floor(ctx.sampleRate * 0.02), ctx.sampleRate);
   const cd = clickBuf.getChannelData(0);
@@ -408,6 +441,7 @@ function playGlitchOneShot(type){
   bp.connect(clickGain);
   clickGain.connect(g);
 
+  // tone stack + subtle FM
   const o1 = ctx.createOscillator();
   const o2 = ctx.createOscillator();
   o1.type = "sine";
@@ -428,6 +462,7 @@ function playGlitchOneShot(type){
   o1.connect(toneGain);
   o2.connect(toneGain);
 
+  // envelope
   const A = 0.002, D = 0.060;
   g.gain.linearRampToValueAtTime(1.0, now + A);
   g.gain.exponentialRampToValueAtTime(0.0008, now + A + D);
@@ -513,41 +548,47 @@ function playGlitchOneShot(type){
   }, Math.max(0, (end - now) * 1000 + 90));
 }
 
+/* ===== mobile-hardened: resume on gestures + recover on restore ===== */
+window.addEventListener("pointerdown", () => { hardResumeAudio(); }, {capture:true, passive:true});
+window.addEventListener("touchstart",  () => { hardResumeAudio(); }, {capture:true, passive:true});
+document.addEventListener("visibilitychange", () => {
+  if (!document.hidden) hardResumeAudio();
+});
+window.addEventListener("pageshow", () => { hardResumeAudio(); });
+
 /* ------------------ start/stop + pointer ------------------ */
-function startAudioGesture(){
+async function startAudioGesture(){
   ensureAudio();
   unlockIOSOnce();
+  await hardResumeAudio();
+  if (!ctx || ctx.state !== "running") return;
 
-  ctx.resume().then(() => {
-    if (ctx.state !== "running") return;
+  holding = true;
+  dot.classList.remove("off");
 
-    holding = true;
-    dot.classList.remove("off");
+  current = pickRandomNote();
 
-    current = pickRandomNote();
+  if (Math.random() < GLITCH_PROB){
+    playGlitchOneShot((Math.random()*5)|0);
+  }
 
-    if (Math.random() < GLITCH_PROB){
-      playGlitchOneShot((Math.random()*5)|0);
-    }
+  const bugMode = (Math.random() < NOISE_PROB);
+  const bugType = (Math.random()*3)|0;
 
-    const bugMode = (Math.random() < NOISE_PROB);
-    const bugType = (Math.random()*3)|0;
+  if (bugMode){
+    startNoise(bugType);
+    ramp(oscGain.gain, 0.0, 0.02);
+    ramp(noiseGain.gain, BUG_LEVEL, 0.02);
+  } else {
+    stopNoise();
+    ramp(noiseGain.gain, 0.0, 0.02);
+    ramp(oscGain.gain, 1.0, 0.02);
+  }
 
-    if (bugMode){
-      startNoise(bugType);
-      ramp(oscGain.gain, 0.0, 0.02);
-      ramp(noiseGain.gain, BUG_LEVEL, 0.02);
-    } else {
-      stopNoise();
-      ramp(noiseGain.gain, 0.0, 0.02);
-      ramp(oscGain.gain, 1.0, 0.02);
-    }
+  applyXY();
 
-    applyXY();
-
-    ramp(lfoDepth.gain, 1.0, 0.02);
-    ramp(master.gain, MASTER_LEVEL, 0.02);
-  }).catch(()=>{});
+  ramp(lfoDepth.gain, 1.0, 0.02);
+  ramp(master.gain, MASTER_LEVEL, 0.02);
 }
 
 function stop(){
@@ -600,6 +641,7 @@ hit.addEventListener("pointercancel", (e) => {
   stop();
 }, {passive:false});
 
+/* iOS Safari/Chrome sometimes prefers touch events too */
 hit.addEventListener("touchstart", (e) => {
   e.preventDefault();
   const t = e.touches[0];
