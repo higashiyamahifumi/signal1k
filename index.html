@@ -5,15 +5,22 @@
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>yoru no tsushin</title>
 
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Oxanium:wght@200;300;400&display=swap" rel="stylesheet">
+
   <style>
     :root{
-      --blue:#1348ff;
-      --paper:#b9bcc4;      /* matte gray */
+      --bg:#0000ff;                    /* Blue 255 */
+      --paper:#b9bcc4;                 /* matte gray */
       --paper2:#aeb2bc;
-      --line: rgba(19,72,255,.85);
-      --lineSoft: rgba(19,72,255,.22);
-      --shadow: rgba(0,0,0,.42);
+      --line: rgba(0,0,255,.90);        /* grid lines */
+      --lineStrong: rgba(0,0,255,.98);  /* border/center */
+      --lineSoft: rgba(0,0,255,.24);
+      --shadow: rgba(0,0,0,.45);
+      --txt: rgba(255,255,255,.28);     /* ghost title */
     }
+
     *{box-sizing:border-box}
     html,body{height:100%}
     body{
@@ -21,14 +28,10 @@
       min-height:100vh;
       display:grid;
       place-items:center;
-      background:
-        radial-gradient(1200px 700px at 30% 20%, rgba(19,72,255,.10), transparent 60%),
-        radial-gradient(1000px 650px at 70% 90%, rgba(19,72,255,.08), transparent 62%),
-        linear-gradient(180deg, #070a10 0%, #05070c 100%);
+      background: var(--bg);
       overscroll-behavior:none;
     }
 
-    /* Only one interactive surface */
     .pad{
       width:min(92vw, 900px);
       height:min(78vh, 640px);
@@ -39,53 +42,70 @@
         inset 0 1px 0 rgba(255,255,255,.40),
         inset 0 -1px 0 rgba(0,0,0,.18),
         0 26px 90px var(--shadow);
-      border:2px solid var(--line);
+      border:2px solid var(--lineStrong);
       position:relative;
       overflow:hidden;
       touch-action:none;
       -webkit-tap-highlight-color: transparent;
     }
 
-    /* inner grid (like your ref) */
+    /* fine square grid (symmetry) */
     .pad::before{
       content:"";
       position:absolute;
       inset:0;
       background:
-        repeating-linear-gradient(0deg,  rgba(19,72,255,.22) 0 1px, transparent 1px 40px),
-        repeating-linear-gradient(90deg, rgba(19,72,255,.22) 0 1px, transparent 1px 64px);
-      opacity:.98;
+        repeating-linear-gradient(0deg,  rgba(0,0,255,.22) 0 1px, transparent 1px 26px),
+        repeating-linear-gradient(90deg, rgba(0,0,255,.22) 0 1px, transparent 1px 26px);
+      opacity:1;
       pointer-events:none;
     }
 
-    /* center div lines */
+    /* center cross */
     .pad::after{
       content:"";
       position:absolute;
       inset:0;
       background:
-        linear-gradient(0deg, transparent 49.5%, rgba(19,72,255,.45) 50%, transparent 50.5%),
-        linear-gradient(90deg, transparent 49.5%, rgba(19,72,255,.45) 50%, transparent 50.5%);
+        linear-gradient(0deg, transparent 49.6%, rgba(0,0,255,.55) 50%, transparent 50.4%),
+        linear-gradient(90deg, transparent 49.6%, rgba(0,0,255,.55) 50%, transparent 50.4%);
       pointer-events:none;
-      opacity:.62;
+      opacity:.85;
     }
 
-    /* big abstract slab but NO TEXT */
+    /* subtle typographic slab (no letters, just tint) */
     .slab{
       position:absolute;
-      left:-60px;
-      bottom:-160px;
-      width:120%;
-      height:120%;
+      left:-80px;
+      bottom:-180px;
+      width:130%;
+      height:130%;
       pointer-events:none;
-      opacity:.14;
+      opacity:.10;
       transform: skewX(-10deg);
       background:
-        radial-gradient(closest-side at 30% 70%, rgba(19,72,255,.70), transparent 62%),
-        radial-gradient(closest-side at 55% 75%, rgba(19,72,255,.55), transparent 64%),
-        radial-gradient(closest-side at 70% 40%, rgba(19,72,255,.45), transparent 60%);
-      filter: blur(.2px);
+        radial-gradient(closest-side at 30% 70%, rgba(0,0,255,.80), transparent 62%),
+        radial-gradient(closest-side at 55% 75%, rgba(0,0,255,.60), transparent 64%),
+        radial-gradient(closest-side at 70% 40%, rgba(0,0,255,.50), transparent 60%);
       mix-blend-mode:multiply;
+      filter: blur(.2px);
+    }
+
+    /* ghost title on grid */
+    .ghost{
+      position:absolute;
+      top:10px;
+      right:12px;
+      font-family:"Oxanium", ui-monospace, monospace;
+      font-weight:200;
+      letter-spacing:3px;
+      text-transform: lowercase;
+      font-size:12px;
+      color: var(--txt);
+      user-select:none;
+      -webkit-user-select:none;
+      pointer-events:none;
+      mix-blend-mode: screen;
     }
 
     /* cursor dot */
@@ -93,8 +113,8 @@
       position:absolute;
       width:12px; height:12px;
       border-radius:999px;
-      background: rgba(19,72,255,.92);
-      box-shadow: 0 0 16px rgba(19,72,255,.25);
+      background: rgba(0,0,255,.92);
+      box-shadow: 0 0 16px rgba(0,0,255,.25);
       border:1px solid rgba(255,255,255,.38);
       transform: translate(-50%,-50%);
       pointer-events:none;
@@ -102,11 +122,10 @@
     }
     .dot.off{
       opacity:.30;
-      background: rgba(19,72,255,.35);
+      background: rgba(0,0,255,.35);
       box-shadow:none;
     }
 
-    /* the only touch target */
     .hit{
       position:absolute;
       inset:0;
@@ -121,6 +140,7 @@
 <body>
   <div class="pad" id="pad" aria-label="xy pad">
     <div class="slab" aria-hidden="true"></div>
+    <div class="ghost" aria-hidden="true">yoru no tsushin</div>
     <div class="dot off" id="dot"></div>
     <div class="hit" id="hit"></div>
   </div>
@@ -420,11 +440,11 @@ function startAudioGesture(){
 
     current = pickRandomNote();
 
-    if (Math.random() < (1/12)){
+    if (Math.random() < GLITCH_PROB){
       playGlitchOneShot((Math.random()*5)|0);
     }
 
-    const bugMode = (Math.random() < (1/15));
+    const bugMode = (Math.random() < NOISE_PROB);
     const bugType = (Math.random()*3)|0;
 
     if (bugMode){
